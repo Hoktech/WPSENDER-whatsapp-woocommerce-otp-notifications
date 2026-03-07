@@ -1,0 +1,676 @@
+/* ==========================================================================
+   HokTech Admin Styles
+   ========================================================================== */
+
+/* Reset & General */
+.hoktech-wrap {
+    max-width: 900px;
+    margin: 20px auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, sans-serif;
+}
+
+/* Header */
+.hoktech-header {
+    background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+    border-radius: 16px;
+    padding: 24px 32px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(37, 211, 102, 0.3);
+}
+
+.hoktech-header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.hoktech-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.hoktech-logo .dashicons {
+    font-size: 36px;
+    width: 36px;
+    height: 36px;
+    color: #fff;
+}
+
+.hoktech-logo h1 {
+    color: #fff;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    padding: 0;
+}
+
+.hoktech-connection-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 20px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.hoktech-connection-badge.connected {
+    background: rgba(255, 255, 255, 0.25);
+    color: #fff;
+}
+
+.hoktech-connection-badge.disconnected {
+    background: rgba(255, 0, 0, 0.2);
+    color: #fff;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.connected .status-dot {
+    background: #90ee90;
+    box-shadow: 0 0 8px #90ee90;
+    animation: pulse-green 2s infinite;
+}
+
+.disconnected .status-dot {
+    background: #ff6b6b;
+    box-shadow: 0 0 8px #ff6b6b;
+}
+
+@keyframes pulse-green {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+/* Tabs */
+.hoktech-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.hoktech-tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 12px 20px;
+    border: none;
+    background: transparent;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+    border-radius: 8px 8px 0 0;
+}
+
+.hoktech-tab:hover {
+    color: #128c7e;
+    background: rgba(18, 140, 126, 0.05);
+}
+
+.hoktech-tab.active {
+    color: #128c7e;
+    border-bottom-color: #25d366;
+    background: rgba(18, 140, 126, 0.08);
+    font-weight: 600;
+}
+
+.hoktech-tab .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+.hoktech-tab-content {
+    display: none;
+}
+
+.hoktech-tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Connection Method Tabs */
+.hoktech-method-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+
+.hoktech-method-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border: 2px solid #e2e8f0;
+    background: #fff;
+    color: #64748b;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.hoktech-method-tab:hover {
+    border-color: #25d366;
+    color: #128c7e;
+}
+
+.hoktech-method-tab.active {
+    border-color: #25d366;
+    background: linear-gradient(135deg, rgba(37, 211, 102, 0.08), rgba(18, 140, 126, 0.08));
+    color: #128c7e;
+    font-weight: 600;
+}
+
+.hoktech-method-content {
+    display: none;
+}
+
+.hoktech-method-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+/* Cards */
+.hoktech-card {
+    background: #fff;
+    border-radius: 14px;
+    border: 1px solid #e2e8f0;
+    overflow: hidden;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+    transition: box-shadow 0.3s ease;
+}
+
+.hoktech-card:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.hoktech-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 18px 24px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.hoktech-card-header.success {
+    background: linear-gradient(135deg, rgba(37, 211, 102, 0.1), rgba(18, 140, 126, 0.08));
+    border-bottom-color: rgba(37, 211, 102, 0.2);
+}
+
+.hoktech-card-header .dashicons {
+    font-size: 22px;
+    width: 22px;
+    height: 22px;
+    color: #128c7e;
+}
+
+.hoktech-card-header h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.hoktech-card-body {
+    padding: 24px;
+}
+
+/* Info Grid (Connected State) */
+.hoktech-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.hoktech-info-item {
+    background: #f8fafc;
+    padding: 14px 18px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.hoktech-info-item label {
+    display: block;
+    font-size: 12px;
+    color: #94a3b8;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.hoktech-info-item span {
+    font-size: 14px;
+    color: #1e293b;
+    font-weight: 500;
+    word-break: break-all;
+}
+
+/* Session Selector */
+.hoktech-session-selector {
+    background: #f1f5f9;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid #e2e8f0;
+}
+
+.hoktech-session-selector h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: #1e293b;
+}
+
+.hoktech-session-selector .description {
+    color: #64748b;
+    font-size: 13px;
+    margin-bottom: 14px;
+}
+
+.hoktech-session-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.hoktech-select {
+    min-width: 280px;
+    padding: 8px 14px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: #1e293b;
+    transition: border-color 0.2s;
+}
+
+.hoktech-select:focus {
+    border-color: #25d366;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15);
+}
+
+/* Forms */
+.hoktech-description {
+    color: #64748b;
+    font-size: 14px;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.hoktech-form-group {
+    margin-bottom: 18px;
+}
+
+.hoktech-form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.hoktech-input {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1e293b;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.hoktech-input:focus {
+    border-color: #25d366;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15);
+}
+
+.hoktech-api-key-input {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 1px;
+    direction: ltr;
+    text-align: left;
+}
+
+.hoktech-textarea {
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1e293b;
+    resize: vertical;
+    min-height: 60px;
+    transition: all 0.2s ease;
+    box-sizing: border-box;
+}
+
+.hoktech-textarea:focus {
+    border-color: #25d366;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.15);
+}
+
+.hoktech-form-actions {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+}
+
+.hoktech-btn-connect {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #25d366, #128c7e) !important;
+    border: none !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+    border-radius: 10px !important;
+    padding: 12px 28px !important;
+    font-size: 15px !important;
+    transition: all 0.3s ease !important;
+    cursor: pointer !important;
+}
+
+.hoktech-btn-connect:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(37, 211, 102, 0.4) !important;
+}
+
+.hoktech-btn-connect:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+.hoktech-btn-danger {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    background: #fee2e2 !important;
+    color: #dc2626 !important;
+    border: 1px solid #fecaca !important;
+    border-radius: 8px !important;
+    padding: 8px 18px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+
+.hoktech-btn-danger:hover {
+    background: #fecaca !important;
+}
+
+.hoktech-actions {
+    padding-top: 16px;
+    border-top: 1px solid #e2e8f0;
+}
+
+/* Notifications */
+.hoktech-placeholders-info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-size: 13px;
+    color: #1e40af;
+    line-height: 1.8;
+}
+
+.hoktech-placeholders-info code {
+    background: #dbeafe;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #1e40af;
+    margin: 0 2px;
+    direction: ltr;
+    display: inline-block;
+}
+
+.hoktech-notification-item {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+
+.hoktech-notification-item:hover {
+    border-color: #cbd5e1;
+}
+
+.hoktech-notification-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.hoktech-notification-icon {
+    font-size: 18px;
+}
+
+.hoktech-notification-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.hoktech-notification-body {
+    padding: 14px 16px;
+}
+
+/* Toggle Switch */
+.hoktech-toggle {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.hoktech-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.hoktech-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #cbd5e1;
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.hoktech-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #fff;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.hoktech-toggle input:checked+.hoktech-toggle-slider {
+    background-color: #25d366;
+}
+
+.hoktech-toggle input:checked+.hoktech-toggle-slider:before {
+    transform: translateX(22px);
+}
+
+/* OTP Options */
+.hoktech-otp-options {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.hoktech-otp-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    background: #f8fafc;
+    padding: 18px;
+    border-radius: 10px;
+    border: 1px solid #e2e8f0;
+}
+
+.hoktech-otp-option-info strong {
+    display: block;
+    font-size: 14px;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.hoktech-otp-option-info p {
+    margin: 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+/* Result Messages */
+.hoktech-result {
+    margin-top: 16px;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.hoktech-result.success {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #bbf7d0;
+}
+
+.hoktech-result.error {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+/* Loading spinner */
+.hoktech-loading {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+    border-top: 2px solid #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .hoktech-wrap {
+        margin: 10px;
+    }
+
+    .hoktech-header {
+        padding: 16px 20px;
+        border-radius: 12px;
+    }
+
+    .hoktech-header-content {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .hoktech-logo h1 {
+        font-size: 18px;
+    }
+
+    .hoktech-tabs {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .hoktech-tab {
+        border-bottom: none;
+        border-right: 3px solid transparent;
+    }
+
+    .hoktech-tab.active {
+        border-bottom: none;
+        border-right-color: #25d366;
+    }
+
+    .hoktech-info-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .hoktech-session-row {
+        flex-direction: column;
+    }
+
+    .hoktech-select {
+        min-width: auto;
+        width: 100%;
+    }
+
+    .hoktech-method-tabs {
+        flex-direction: column;
+    }
+}
