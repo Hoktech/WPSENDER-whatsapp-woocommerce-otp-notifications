@@ -183,6 +183,8 @@ class HokTech_Admin_Settings {
         $settings = [
             'enable_checkout_otp'     => !empty($_POST['enable_checkout_otp']),
             'enable_registration_otp' => !empty($_POST['enable_registration_otp']),
+            'enable_country_selector' => !empty($_POST['enable_country_selector']),
+            'default_country_code'    => sanitize_text_field(wp_unslash($_POST['default_country_code'] ?? 'EG')),
             'otp_message'             => sanitize_textarea_field(wp_unslash($_POST['otp_message'] ?? '')),
         ];
 
@@ -479,6 +481,44 @@ class HokTech_Admin_Settings {
                                         <strong><?php esc_html_e('التحقق أثناء التسجيل', 'sender-notification'); ?></strong>
                                         <p><?php esc_html_e('يتطلب من المستخدم التحقق من رقم هاتفه عند إنشاء حساب جديد', 'sender-notification'); ?></p>
                                     </div>
+                                </div>
+                            </div>
+
+                            <!-- Country Code Selector Section -->
+                            <div class="hoktech-country-selector-settings" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                                <h3 style="margin: 0 0 12px; font-size: 15px; font-weight: 600; color: #1e1e1e;">
+                                    <?php esc_html_e('محدد كود الدولة', 'sender-notification'); ?>
+                                </h3>
+                                <div class="hoktech-otp-option">
+                                    <label class="hoktech-toggle">
+                                        <input type="checkbox" name="enable_country_selector" value="1" <?php checked(!empty($otp_settings['enable_country_selector'])); ?>>
+                                        <span class="hoktech-toggle-slider"></span>
+                                    </label>
+                                    <div class="hoktech-otp-option-info">
+                                        <strong><?php esc_html_e('تفعيل محدد كود الدولة في الشيكاوت', 'sender-notification'); ?></strong>
+                                        <p><?php esc_html_e('يضيف قائمة منسدلة بأعلام الدول وأكواد الاتصال بجانب حقل الهاتف في صفحة الدفع', 'sender-notification'); ?></p>
+                                    </div>
+                                </div>
+                                <div class="hoktech-form-group" style="margin-top: 14px;">
+                                    <label for="hoktech-default-country"><?php esc_html_e('الدولة الافتراضية', 'sender-notification'); ?></label>
+                                    <select id="hoktech-default-country" name="default_country_code" class="hoktech-select" style="width: 100%; max-width: 400px;">
+                                        <?php
+                                        if (function_exists('hoktech_get_country_codes')) {
+                                            $countries = hoktech_get_country_codes();
+                                            $default_code = $otp_settings['default_country_code'] ?? 'EG';
+                                            foreach ($countries as $country) {
+                                                printf(
+                                                    '<option value="%s" %s>%s %s (%s)</option>',
+                                                    esc_attr($country['code']),
+                                                    selected($default_code, $country['code'], false),
+                                                    esc_html($country['flag']),
+                                                    esc_html($country['name']),
+                                                    esc_html($country['dial_code'])
+                                                );
+                                            }
+                                        }
+                                        ?>
+                                    </select>
                                 </div>
                             </div>
                             <div class="hoktech-form-group">

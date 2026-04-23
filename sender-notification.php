@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('HOKTECH_WA_VERSION', '1.0.1');
+define('HOKTECH_WA_VERSION', '1.0.3');
 define('HOKTECH_WA_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('HOKTECH_WA_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('HOKTECH_WA_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -49,6 +49,7 @@ final class HokTech_sender {
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-order-notifications.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-otp-verification.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-custom-message.php';
+        require_once HOKTECH_WA_PLUGIN_DIR . 'includes/country-codes.php';
     }
 
     private function init_hooks() {
@@ -110,13 +111,26 @@ final class HokTech_sender {
 
     public function frontend_assets() {
         $otp_settings = get_option('hoktech_wa_otp_settings', []);
-        if (!empty($otp_settings['enable_checkout_otp']) || !empty($otp_settings['enable_registration_otp'])) {
+        $country_selector_enabled = !empty($otp_settings['enable_country_selector']);
+        $otp_enabled = !empty($otp_settings['enable_checkout_otp']) || !empty($otp_settings['enable_registration_otp']);
+
+        if ($otp_enabled || $country_selector_enabled) {
             wp_enqueue_style('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/css/frontend-style.css', [], HOKTECH_WA_VERSION);
             wp_enqueue_script('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/js/frontend-otp.js', ['jquery'], HOKTECH_WA_VERSION, true);
-            wp_localize_script('hoktech-wa-frontend', 'hoktechOTP', [
+
+            $localize_data = [
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce'   => wp_create_nonce('hoktech_otp_nonce'),
-            ]);
+            ];
+
+            // Pass country codes data if selector is enabled
+            if ($country_selector_enabled && function_exists('hoktech_get_country_codes')) {
+                $localize_data['countrySelector'] = true;
+                $localize_data['defaultCountry']  = $otp_settings['default_country_code'] ?? 'EG';
+                $localize_data['countries']       = hoktech_get_country_codes();
+            }
+
+            wp_localize_script('hoktech-wa-frontend', 'hoktechOTP', $localize_data);
         }
     }
 }
@@ -149,6 +163,8 @@ register_activation_hook(__FILE__, function () {
         update_option('hoktech_wa_otp_settings', [
             'enable_checkout_otp'     => false,
             'enable_registration_otp' => false,
+            'enable_country_selector' => false,
+            'default_country_code'    => 'EG',
             'otp_message'             => 'رمز التحقق الخاص بك هو: {otp_code} - {site_name}',
         ]);
     }

@@ -21,6 +21,22 @@ class HokTech_Order_Notifications {
      * Handle order status change
      */
     public function on_status_changed($order_id, $old_status, $new_status, $order) {
+        // Ignore sub-orders (multi-vendor support) to only send for the main order
+        if ($order->get_parent_id() > 0) {
+            return;
+        }
+
+        // Prevent duplicate firing for the exact same status transition
+        if ($old_status === $new_status) {
+            return;
+        }
+
+        // Prevent duplicate sending for the same status on this order
+        $meta_key = '_hoktech_wa_sent_status_' . $new_status;
+        if (get_post_meta($order_id, $meta_key, true)) {
+            return;
+        }
+
         // Check if connected
         if (!$this->api->is_connected()) {
             return;
@@ -43,7 +59,31 @@ class HokTech_Order_Notifications {
         }
 
         // Clean phone number - remove spaces, dashes, plus sign
-        $phone = preg_replace('/[^0-9]/', '', $phone);
+        $phone = preg_replace('/[^0-9+]/', '', $phone);
+
+        // Format phone with country code if country selector is enabled
+        $otp_settings = get_option('hoktech_wa_otp_settings', []);
+        if (!empty($otp_settings['enable_country_selector']) && function_exists('hoktech_wc_country_to_dial')) {
+            $billing_country = $order->get_billing_country();
+            if (!empty($billing_country)) {
+                $dial_code = hoktech_wc_country_to_dial($billing_country);
+                $dial_digits = preg_replace('/[^0-9]/', '', $dial_code);
+                $phone_digits = preg_replace('/[^0-9]/', '', $phone);
+
+                // If phone doesn't already start with the dial code, format it
+                if (!empty($dial_digits) && strpos($phone_digits, $dial_digits) !== 0) {
+                    // Strip leading zero from local number
+                    $phone_digits = ltrim($phone_digits, '0');
+                    $phone = $dial_digits . $phone_digits;
+                } else {
+                    $phone = $phone_digits;
+                }
+            } else {
+                $phone = preg_replace('/[^0-9]/', '', $phone);
+            }
+        } else {
+            $phone = preg_replace('/[^0-9]/', '', $phone);
+        }
 
         // Build message from template
         $message = $this->parse_template($status_setting['message'], $order);
@@ -68,6 +108,9 @@ class HokTech_Order_Notifications {
 
         // Add order note
         if ($result['success']) {
+            // Mark as sent to prevent duplicates
+            update_post_meta($order_id, $meta_key, true);
+
             $order->add_order_note(
                 sprintf(
                     /* translators: 1: Phone number, 2: Order status */

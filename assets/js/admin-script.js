@@ -253,6 +253,8 @@
             nonce: hoktechWA.nonce,
             enable_checkout_otp: $(this).find('input[name="enable_checkout_otp"]').is(':checked') ? '1' : '',
             enable_registration_otp: $(this).find('input[name="enable_registration_otp"]').is(':checked') ? '1' : '',
+            enable_country_selector: $(this).find('input[name="enable_country_selector"]').is(':checked') ? '1' : '',
+            default_country_code: $(this).find('select[name="default_country_code"]').val(),
             otp_message: $(this).find('textarea[name="otp_message"]').val()
         }, function (response) {
             $btn.prop('disabled', false);
