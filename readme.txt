@@ -4,7 +4,7 @@ Tags: messaging, chat, woocommerce, otp, notifications
 Requires at least: 5.8
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.0.1
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -48,6 +48,10 @@ Yes! The OTP verification feature is fully compatible with the modern WooCommerc
 3. Setting up OTP verification for checkout and registration.
 
 == Changelog ==
+
+= 1.1.0 =
+* إتاحة صندوق أو Meta Box في صفحة الطلب لإرسال رسائل واتس اب مخصصة للعميل.
+* إضافة التنبيهات المخصصة لدعم أرقام الإدارة عند حدوث تغيير في حالة الطلب.
 
 = 1.0.1 =
 * Fixed issue with newline removal in notification messages and custom messages.

@@ -300,4 +300,94 @@
         });
     });
 
+    // ========== Order Meta Box: Send Message ==========
+    $(document).on('click', '#hoktech-send-order-msg', function () {
+        var $btn = $(this);
+        var $result = $('#hoktech-order-msg-result');
+        var originalText = $btn.html();
+        var phone = $('#hoktech-order-phone').val();
+        var message = $('#hoktech-order-message').val();
+        var orderId = $('#hoktech-order-id').val();
+
+        if (!message || !message.trim()) {
+            $result.html('⚠️ الرجاء كتابة الرسالة').removeClass('success').addClass('error').fadeIn();
+            return;
+        }
+
+        $btn.prop('disabled', true).html(
+            '<span class="dashicons dashicons-update"></span> ' + hoktechWA.strings.sending + '<span class="hoktech-loading"></span>'
+        );
+        $result.hide();
+
+        $.post(hoktechWA.ajaxUrl, {
+            action: 'hoktech_send_order_message',
+            nonce: hoktechWA.nonce,
+            phone: phone,
+            message: message,
+            order_id: orderId
+        }, function (response) {
+            $btn.prop('disabled', false).html(originalText);
+            if (response.success) {
+                $result.html('✅ ' + response.data.message).removeClass('error').addClass('success').fadeIn();
+                setTimeout(function () { $result.fadeOut(); }, 5000);
+            } else {
+                $result.html('❌ ' + (response.data?.message || hoktechWA.strings.error)).removeClass('success').addClass('error').fadeIn();
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).html(originalText);
+            $result.html('❌ ' + hoktechWA.strings.error).removeClass('success').addClass('error').fadeIn();
+        });
+    });
+
+    // ========== Order Meta Box: Insert Variable Tags ==========
+    $(document).on('click', '.hoktech-var-tag', function () {
+        var varText = $(this).data('var');
+        var $textarea = $('#hoktech-order-message');
+        var textarea = $textarea[0];
+        var startPos = textarea.selectionStart;
+        var endPos = textarea.selectionEnd;
+        var currentVal = $textarea.val();
+
+        $textarea.val(currentVal.substring(0, startPos) + varText + currentVal.substring(endPos));
+
+        // Set cursor position after inserted text
+        var newPos = startPos + varText.length;
+        textarea.setSelectionRange(newPos, newPos);
+        $textarea.focus();
+    });
+
+    // ========== Save Admin Notification Settings ==========
+    $(document).on('submit', '#hoktech-admin-notifications-form', function (e) {
+        e.preventDefault();
+
+        var $btn = $(this).find('button[type="submit"]');
+        var $result = $('#hoktech-admin-notif-result');
+
+        $btn.prop('disabled', true);
+
+        // Collect checked statuses
+        var statuses = [];
+        $(this).find('input[name="admin_statuses[]"]:checked').each(function () {
+            statuses.push($(this).val());
+        });
+
+        $.post(hoktechWA.ajaxUrl, {
+            action: 'hoktech_save_admin_notifications',
+            nonce: hoktechWA.nonce,
+            enabled: $(this).find('input[name="admin_notif_enabled"]').is(':checked') ? '1' : '',
+            phones: $(this).find('textarea[name="admin_phones"]').val(),
+            message: $(this).find('textarea[name="admin_message"]').val(),
+            statuses: statuses
+        }, function (response) {
+            $btn.prop('disabled', false);
+            if (response.success) {
+                $result.html('✅ ' + response.data.message).removeClass('error').addClass('success').fadeIn();
+                setTimeout(function () { $result.fadeOut(); }, 3000);
+            } else {
+                $result.html('❌ ' + (response.data?.message || 'خطأ')).removeClass('success').addClass('error').fadeIn();
+            }
+        });
+    });
+
 })(jQuery);
+

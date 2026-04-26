@@ -128,6 +128,92 @@ class HokTech_Order_Notifications {
                 )
             );
         }
+
+        // Send admin notifications
+        $this->send_admin_notifications($order, $new_status);
+    }
+
+    /**
+     * Send notifications to admin phone numbers
+     */
+    private function send_admin_notifications($order, $new_status) {
+        $admin_settings = get_option('hoktech_wa_admin_notifications', []);
+
+        // Check if admin notifications are enabled
+        if (empty($admin_settings['enabled'])) {
+            return;
+        }
+
+        // Check if this status is enabled for admin notifications
+        $enabled_statuses = $admin_settings['statuses'] ?? [];
+        if (!in_array($new_status, $enabled_statuses, true)) {
+            return;
+        }
+
+        // Get admin phone numbers
+        $admin_phones_raw = $admin_settings['phones'] ?? '';
+        if (empty($admin_phones_raw)) {
+            return;
+        }
+
+        // Parse phone numbers (separated by newlines or commas)
+        $admin_phones = preg_split('/[\n,]+/', $admin_phones_raw);
+        $admin_phones = array_map('trim', $admin_phones);
+        $admin_phones = array_filter($admin_phones);
+
+        if (empty($admin_phones)) {
+            return;
+        }
+
+        // Get admin message template
+        $admin_message_template = $admin_settings['message'] ?? '';
+        if (empty($admin_message_template)) {
+            $admin_message_template = '🔔 طلب جديد #{order_id}' . "\n" .
+                'العميل: {customer_name}' . "\n" .
+                'المبلغ: {order_total}' . "\n" .
+                'الحالة: {order_status}' . "\n" .
+                '{site_name}';
+        }
+
+        // Parse the template
+        $admin_message = $this->parse_template($admin_message_template, $order);
+
+        // Send to each admin phone
+        $sent_count = 0;
+        $fail_count = 0;
+
+        foreach ($admin_phones as $admin_phone) {
+            $clean_phone = preg_replace('/[^0-9]/', '', $admin_phone);
+            if (empty($clean_phone)) {
+                continue;
+            }
+
+            $result = $this->api->send_message($clean_phone, $admin_message);
+
+            if ($result['success']) {
+                $sent_count++;
+            } else {
+                $fail_count++;
+            }
+        }
+
+        // Add order note about admin notifications
+        if ($sent_count > 0) {
+            $order->add_order_note(
+                sprintf(
+                    __('👥 تم إرسال إشعار الإدارة إلى %d رقم بنجاح', 'sender-notification'),
+                    $sent_count
+                )
+            );
+        }
+        if ($fail_count > 0) {
+            $order->add_order_note(
+                sprintf(
+                    __('⚠️ فشل إرسال إشعار الإدارة إلى %d رقم', 'sender-notification'),
+                    $fail_count
+                )
+            );
+        }
     }
 
     /**

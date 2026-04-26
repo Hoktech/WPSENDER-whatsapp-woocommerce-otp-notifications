@@ -3,7 +3,7 @@
  * Plugin Name: sender - Order Notifications & Messaging
  * Plugin URI: https://www.wpsenderx.com
  * Description: إضافة ووردبريس لربط متجر WooCommerce بمنصة sender للإشعارات - تنبيهات الطلبات، التحقق عبر OTP، ورسائل مخصصة
- * Version: 1.0.1
+ * Version: 1.1.0
  * Author: sender
  * Text Domain: sender-notification
  * Domain Path: /languages
@@ -19,7 +19,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('HOKTECH_WA_VERSION', '1.0.3');
+define('HOKTECH_WA_VERSION', '1.1.0');
 define('HOKTECH_WA_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('HOKTECH_WA_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('HOKTECH_WA_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -49,6 +49,7 @@ final class HokTech_sender {
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-order-notifications.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-otp-verification.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-custom-message.php';
+        require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-order-metabox.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/country-codes.php';
     }
 
@@ -85,6 +86,7 @@ final class HokTech_sender {
         if (class_exists('WooCommerce')) {
             new HokTech_Order_Notifications();
             new HokTech_OTP_Verification();
+            new HokTech_Order_MetaBox();
         }
     }
 

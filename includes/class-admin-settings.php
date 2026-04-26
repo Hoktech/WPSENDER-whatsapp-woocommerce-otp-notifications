@@ -23,6 +23,7 @@ class HokTech_Admin_Settings {
         add_action('wp_ajax_hoktech_save_session', [$this, 'ajax_save_session']);
         add_action('wp_ajax_hoktech_save_notifications', [$this, 'ajax_save_notifications']);
         add_action('wp_ajax_hoktech_save_otp_settings', [$this, 'ajax_save_otp_settings']);
+        add_action('wp_ajax_hoktech_save_admin_notifications', [$this, 'ajax_save_admin_notifications']);
     }
 
     public function add_menu() {
@@ -193,6 +194,29 @@ class HokTech_Admin_Settings {
     }
 
     /**
+     * AJAX: Save admin notification settings
+     */
+    public function ajax_save_admin_notifications() {
+        check_ajax_referer('hoktech_wa_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('صلاحيات غير كافية', 'sender-notification')]);
+        }
+
+        $settings = [
+            'enabled'  => !empty($_POST['enabled']),
+            'phones'   => sanitize_textarea_field(wp_unslash($_POST['phones'] ?? '')),
+            'message'  => sanitize_textarea_field(wp_unslash($_POST['message'] ?? '')),
+            'statuses' => isset($_POST['statuses']) && is_array($_POST['statuses'])
+                ? array_map('sanitize_key', $_POST['statuses'])
+                : [],
+        ];
+
+        update_option('hoktech_wa_admin_notifications', $settings);
+        wp_send_json_success(['message' => __('تم حفظ إعدادات إشعارات الإدارة بنجاح', 'sender-notification')]);
+    }
+
+    /**
      * Render the admin page
      */
     public function render_page() {
@@ -200,6 +224,7 @@ class HokTech_Admin_Settings {
         $is_connected = $this->api->is_connected();
         $notifications = get_option('hoktech_wa_notification_settings', []);
         $otp_settings = get_option('hoktech_wa_otp_settings', []);
+        $admin_notifications = get_option('hoktech_wa_admin_notifications', []);
         ?>
         <div class="wrap hoktech-wrap" dir="rtl">
             <div class="hoktech-header">
@@ -447,6 +472,69 @@ class HokTech_Admin_Settings {
                             </div>
                         </form>
                         <div id="hoktech-notifications-result" class="hoktech-result" style="display:none;"></div>
+                    </div>
+                </div>
+
+                <!-- Admin Notifications Section -->
+                <div class="hoktech-card" style="margin-top: 24px;">
+                    <div class="hoktech-card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 10px; vertical-align: middle;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        <h2><?php esc_html_e('إشعارات الإدارة', 'sender-notification'); ?></h2>
+                    </div>
+                    <div class="hoktech-card-body">
+                        <p class="hoktech-description"><?php esc_html_e('أرسل إشعارات تلقائية لأرقام الإدارة عند تغيير حالة الطلبات', 'sender-notification'); ?></p>
+                        <form id="hoktech-admin-notifications-form">
+                            <div class="hoktech-otp-option" style="margin-bottom: 20px;">
+                                <label class="hoktech-toggle">
+                                    <input type="checkbox" name="admin_notif_enabled" value="1" <?php checked(!empty($admin_notifications['enabled'])); ?>>
+                                    <span class="hoktech-toggle-slider"></span>
+                                </label>
+                                <div class="hoktech-otp-option-info">
+                                    <strong><?php esc_html_e('تفعيل إشعارات الإدارة', 'sender-notification'); ?></strong>
+                                    <p><?php esc_html_e('عند التفعيل، سيتم إرسال إشعار واتساب لأرقام الإدارة المحددة عند تغيير حالة الطلب', 'sender-notification'); ?></p>
+                                </div>
+                            </div>
+
+                            <div class="hoktech-form-group">
+                                <label for="hoktech-admin-phones"><?php esc_html_e('أرقام هواتف الإدارة', 'sender-notification'); ?></label>
+                                <textarea id="hoktech-admin-phones" name="admin_phones" class="hoktech-textarea" rows="3" placeholder="<?php esc_attr_e('رقم واحد في كل سطر مثل:\n201234567890\n201098765432', 'sender-notification'); ?>"><?php echo esc_textarea($admin_notifications['phones'] ?? ''); ?></textarea>
+                                <p class="description"><?php esc_html_e('أدخل رقم واحد في كل سطر أو افصل بينهم بفاصلة', 'sender-notification'); ?></p>
+                            </div>
+
+                            <div class="hoktech-form-group">
+                                <label><?php esc_html_e('الحالات المُفعّلة للإشعار', 'sender-notification'); ?></label>
+                                <div class="hoktech-admin-statuses-grid">
+                                    <?php
+                                    $wc_statuses_admin = function_exists('wc_get_order_statuses') ? wc_get_order_statuses() : [];
+                                    $enabled_admin_statuses = $admin_notifications['statuses'] ?? [];
+                                    foreach ($wc_statuses_admin as $status_key => $status_label):
+                                        $status_clean = str_replace('wc-', '', $status_key);
+                                    ?>
+                                    <label class="hoktech-admin-status-item">
+                                        <input type="checkbox" name="admin_statuses[]" value="<?php echo esc_attr($status_clean); ?>" <?php checked(in_array($status_clean, $enabled_admin_statuses, true)); ?>>
+                                        <span><?php echo esc_html($status_label); ?></span>
+                                    </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+
+                            <div class="hoktech-form-group">
+                                <label for="hoktech-admin-message"><?php esc_html_e('قالب رسالة الإدارة', 'sender-notification'); ?></label>
+                                <textarea id="hoktech-admin-message" name="admin_message" class="hoktech-textarea" rows="4" placeholder="<?php esc_attr_e('🔔 طلب جديد #{order_id}\nالعميل: {customer_name}\nالمبلغ: {order_total}\nالحالة: {order_status}', 'sender-notification'); ?>"><?php echo esc_textarea($admin_notifications['message'] ?? ''); ?></textarea>
+                                <div class="hoktech-placeholders-info" style="margin-top: 10px; margin-bottom: 0;">
+                                    <strong><?php esc_html_e('المتغيرات المتاحة:', 'sender-notification'); ?></strong>
+                                    <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code>
+                                </div>
+                            </div>
+
+                            <div class="hoktech-form-actions">
+                                <button type="submit" class="button button-primary">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: middle;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                    <?php esc_html_e('حفظ إعدادات الإدارة', 'sender-notification'); ?>
+                                </button>
+                            </div>
+                        </form>
+                        <div id="hoktech-admin-notif-result" class="hoktech-result" style="display:none;"></div>
                     </div>
                 </div>
             </div>
