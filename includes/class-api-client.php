@@ -266,7 +266,7 @@ class HokTech_API_Client {
     /**
      * Send a message
      */
-    public function send_message($recipient, $message, $session_id = null, $media = null) {
+    public function send_message($recipient, $message, $session_id = null, $media = null, $async = false) {
         if (!$this->is_connected()) {
             return ['success' => false, 'message' => __('غير متصل بالمنصة', 'sender-notification')];
         }
@@ -291,14 +291,24 @@ class HokTech_API_Client {
             $payload['session_id'] = $session_id;
         }
 
-        $response = $this->make_request('POST', $this->api_url . '/api/messages/send', [
+        $request_args = [
             'headers' => [
                 'Content-Type' => 'application/json',
                 'x-api-key'    => $this->api_key,
                 'Referer'      => get_site_url(),
             ],
-            'body' => wp_json_encode($payload),
-        ]);
+            'body'    => wp_json_encode($payload),
+        ];
+
+        // Non-blocking: أرسل الطلب ولا تنتظر الرد (Checkout فوري)
+        if ($async) {
+            $request_args['blocking'] = false;
+            $request_args['timeout']  = 5;
+            wp_remote_post($this->api_url . '/api/messages/send', $request_args);
+            return ['success' => true, 'message' => __('تم إرسال طلب الرسالة', 'sender-notification')];
+        }
+
+        $response = $this->make_request('POST', $this->api_url . '/api/messages/send', $request_args);
 
         if (is_wp_error($response)) {
             return ['success' => false, 'message' => $response->get_error_message()];
@@ -320,6 +330,7 @@ class HokTech_API_Client {
             'data'    => $body['data'] ?? [],
         ];
     }
+
 
     /**
      * Send OTP

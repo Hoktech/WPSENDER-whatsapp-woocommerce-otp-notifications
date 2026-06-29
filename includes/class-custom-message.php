@@ -28,7 +28,7 @@ class HokTech_Custom_Message {
         }
 
         $phone   = sanitize_text_field(wp_unslash($_POST['phone'] ?? ''));
-        $message = sanitize_textarea_field(wp_unslash($_POST['message'] ?? ''));
+        $message = hoktech_sanitize_textarea(wp_unslash($_POST['message'] ?? ''));
 
         if (empty($phone) || empty($message)) {
             wp_send_json_error(['message' => __('رقم الهاتف والرسالة مطلوبان', 'sender-notification')]);

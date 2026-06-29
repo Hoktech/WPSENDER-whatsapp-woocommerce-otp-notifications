@@ -18,11 +18,55 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Prevent loading the plugin twice (e.g. two copies of the folder in /plugins)
+if (defined('HOKTECH_WA_VERSION')) {
+    return;
+}
+
 // Plugin constants
 define('HOKTECH_WA_VERSION', '1.1.0');
 define('HOKTECH_WA_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('HOKTECH_WA_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('HOKTECH_WA_PLUGIN_BASENAME', plugin_basename(__FILE__));
+
+/**
+ * Sanitize textarea field keeping line breaks and spaces.
+ * Bypasses the 'sanitize_textarea_field' filter to prevent third-party plugins from stripping newlines.
+ */
+if (!function_exists('hoktech_sanitize_textarea')) {
+    function hoktech_sanitize_textarea($text, $keep_whitespace = false) {
+        if (!is_string($text)) {
+            return '';
+        }
+        // Normalize line breaks to \n
+        $text = str_replace("\r\n", "\n", $text);
+        $text = str_replace("\r", "\n", $text);
+
+        // Save leading and trailing whitespace if keeping them
+        $leading = '';
+        $trailing = '';
+        if ($keep_whitespace) {
+            if (preg_match('/^\s+/u', $text, $matches)) {
+                $leading = $matches[0];
+            }
+            if (preg_match('/\s+$/u', $text, $matches)) {
+                $trailing = $matches[0];
+            }
+        }
+
+        // Strip HTML tags (like scripts/styles) but keep newlines
+        $text = wp_strip_all_tags($text, false);
+
+        // Clean invalid UTF-8 characters
+        $text = wp_check_invalid_utf8($text);
+
+        if ($keep_whitespace) {
+            return $leading . $text . $trailing;
+        }
+
+        return trim($text);
+    }
+}
 
 /**
  * Main Plugin Class
@@ -45,8 +89,10 @@ final class HokTech_sender {
 
     private function includes() {
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-api-client.php';
+        require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-async-sender.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-admin-settings.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-order-notifications.php';
+        require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-vendor-notifications.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-otp-verification.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-custom-message.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-order-metabox.php';
@@ -84,7 +130,10 @@ final class HokTech_sender {
 
         // WooCommerce dependent components
         if (class_exists('WooCommerce')) {
+            // Async sender must be registered first so the AJAX endpoint exists
+            new HokTech_Async_Sender();
             new HokTech_Order_Notifications();
+            new HokTech_Vendor_Notifications();
             new HokTech_OTP_Verification();
             new HokTech_Order_MetaBox();
         }
@@ -95,7 +144,8 @@ final class HokTech_sender {
             return;
         }
         wp_enqueue_style('hoktech-wa-admin', HOKTECH_WA_PLUGIN_URL . 'assets/css/admin-style.css', [], HOKTECH_WA_VERSION);
-        wp_enqueue_script('hoktech-wa-admin', HOKTECH_WA_PLUGIN_URL . 'assets/js/admin-script.js', ['jquery'], HOKTECH_WA_VERSION, true);
+        $admin_js_ver = HOKTECH_WA_VERSION . '-' . filemtime(HOKTECH_WA_PLUGIN_DIR . 'assets/js/admin-script.js');
+        wp_enqueue_script('hoktech-wa-admin', HOKTECH_WA_PLUGIN_URL . 'assets/js/admin-script.js', ['jquery'], $admin_js_ver, true);
         wp_localize_script('hoktech-wa-admin', 'hoktechWA', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('hoktech_wa_nonce'),
@@ -168,6 +218,14 @@ register_activation_hook(__FILE__, function () {
             'enable_country_selector' => false,
             'default_country_code'    => 'EG',
             'otp_message'             => 'رمز التحقق الخاص بك هو: {otp_code} - {site_name}',
+        ]);
+    }
+    if (!get_option('hoktech_wa_vendor_notifications')) {
+        update_option('hoktech_wa_vendor_notifications', [
+            'enabled'        => false,
+            'statuses'       => ['processing'],
+            'phone_meta_key' => '',
+            'message'        => "🏪 مرحباً {vendor_name}،\nلديك طلب جديد رقم #{order_id} من العميل {customer_name}\n\nالمنتجات الخاصة بك:\n{vendor_items}\n\nإجمالي منتجاتك: {vendor_items_total}\n\nيرجى التجهيز في أقرب وقت ✅\n{site_name}",
         ]);
     }
 });

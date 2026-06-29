@@ -15,6 +15,11 @@
         // Update tab content
         $('.hoktech-tab-content').removeClass('active');
         $('#tab-' + tab).addClass('active');
+
+        // Load vendor sessions when switching to vendor tab
+        if (tab === 'vendors' && $('#hoktech-vendor-session-select').length) {
+            loadVendorSessions(false);
+        }
     });
 
     // ========== Connection Method Tabs ==========
@@ -192,6 +197,88 @@
         });
     });
 
+    // ========== Vendor Session Selector ==========
+    function loadVendorSessions(force) {
+        var $select = $('#hoktech-vendor-session-select');
+        if (!$select.length) return;
+
+        var currentSession = $('#hoktech-vendor-current-session').val();
+        $select.html('<option value="">-- ' + hoktechWA.strings.connecting + ' --</option>');
+
+        $.post(hoktechWA.ajaxUrl, {
+            action: 'hoktech_get_sessions',
+            nonce: hoktechWA.nonce,
+            force: force ? 'true' : 'false'
+        }, function (response) {
+            if (response.success && response.data.sessions) {
+                var sessions = response.data.sessions;
+                var defaultLabel = currentSession
+                    ? '-- تغيير الجلسة (محفوظة: ' + currentSession + ') --'
+                    : '-- نفس جلسة العملاء (افتراضي) --';
+                var html = '<option value="">' + defaultLabel + '</option>';
+
+                if (Array.isArray(sessions)) {
+                    sessions.forEach(function (session) {
+                        var sessionId = session.session_id || session.id;
+                        var label = session.session_id || session.name || session.id;
+                        var status = session.status || '';
+                        var statusBadge = (status === 'connected' || status === 'CONNECTED') ? ' ✅' :
+                                          (status === 'disconnected' || status === 'DISCONNECTED') ? ' ❌' : '';
+                        var phone = session.phone_number || session.phoneNumber || '';
+                        if (phone) label += ' (' + phone + ')';
+                        var selected = (sessionId == currentSession) ? ' selected' : '';
+                        html += '<option value="' + sessionId + '"' + selected + '>' + label + statusBadge + '</option>';
+                    });
+                }
+
+                $select.html(html);
+            } else {
+                $select.html('<option value="">لا توجد جلسات متاحة</option>');
+            }
+        }).fail(function () {
+            $select.html('<option value="">فشل تحميل الجلسات</option>');
+        });
+    }
+
+    // Auto-load vendor sessions on page load if the selector exists
+    if ($('#hoktech-vendor-session-select').length) {
+        loadVendorSessions(false);
+    }
+
+    // Refresh vendor sessions
+    $(document).on('click', '#hoktech-vendor-refresh-sessions', function () {
+        loadVendorSessions(true);
+    });
+
+    // Save vendor session
+    $(document).on('click', '#hoktech-vendor-save-session', function () {
+        var $btn = $(this);
+        var $result = $('#hoktech-vendor-session-result');
+        var originalText = $btn.html();
+        var vendorSessionId = $('#hoktech-vendor-session-select').val();
+
+        $btn.prop('disabled', true);
+        $result.hide();
+
+        $.post(hoktechWA.ajaxUrl, {
+            action: 'hoktech_save_vendor_session',
+            nonce: hoktechWA.nonce,
+            vendor_session_id: vendorSessionId
+        }, function (response) {
+            $btn.prop('disabled', false).html(originalText);
+            if (response.success) {
+                $('#hoktech-vendor-current-session').val(vendorSessionId);
+                $result.html('✅ ' + response.data.message).removeClass('error').addClass('success').fadeIn();
+                setTimeout(function () { $result.fadeOut(); }, 3000);
+            } else {
+                $result.html('❌ ' + (response.data?.message || hoktechWA.strings.error)).removeClass('success').addClass('error').fadeIn();
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).html(originalText);
+            $result.html('❌ ' + hoktechWA.strings.error).removeClass('success').addClass('error').fadeIn();
+        });
+    });
+
     // ========== Save Notification Settings ==========
     $(document).on('submit', '#hoktech-notifications-form', function (e) {
         e.preventDefault();
@@ -339,6 +426,66 @@
         });
     });
 
+    // ========== Order Meta Box: Resend Customer Notification ==========
+    $(document).on('click', '#hoktech-resend-customer-notif', function () {
+        var $btn = $(this);
+        var $result = $('#hoktech-resend-result');
+        var originalText = $btn.html();
+        var orderId = $('#hoktech-order-id').val();
+
+        $btn.prop('disabled', true).html(
+            '<span class="dashicons dashicons-update"></span> ' + hoktechWA.strings.sending + '<span class="hoktech-loading"></span>'
+        );
+        $result.hide();
+
+        $.post(hoktechWA.ajaxUrl, {
+            action: 'hoktech_resend_customer_notif',
+            nonce: hoktechWA.nonce,
+            order_id: orderId
+        }, function (response) {
+            $btn.prop('disabled', false).html(originalText);
+            if (response.success) {
+                $result.html('✅ ' + response.data.message).removeClass('error').addClass('success').fadeIn();
+                setTimeout(function () { $result.fadeOut(); }, 5000);
+            } else {
+                $result.html('❌ ' + (response.data?.message || hoktechWA.strings.error)).removeClass('success').addClass('error').fadeIn();
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).html(originalText);
+            $result.html('❌ ' + hoktechWA.strings.error).removeClass('success').addClass('error').fadeIn();
+        });
+    });
+
+    // ========== Order Meta Box: Resend Vendor Notification ==========
+    $(document).on('click', '#hoktech-resend-vendor-notif', function () {
+        var $btn = $(this);
+        var $result = $('#hoktech-resend-result');
+        var originalText = $btn.html();
+        var orderId = $('#hoktech-order-id').val();
+
+        $btn.prop('disabled', true).html(
+            '<span class="dashicons dashicons-update"></span> ' + hoktechWA.strings.sending + '<span class="hoktech-loading"></span>'
+        );
+        $result.hide();
+
+        $.post(hoktechWA.ajaxUrl, {
+            action: 'hoktech_resend_vendor_notif',
+            nonce: hoktechWA.nonce,
+            order_id: orderId
+        }, function (response) {
+            $btn.prop('disabled', false).html(originalText);
+            if (response.success) {
+                $result.html('✅ ' + response.data.message).removeClass('error').addClass('success').fadeIn();
+                setTimeout(function () { $result.fadeOut(); }, 5000);
+            } else {
+                $result.html('❌ ' + (response.data?.message || hoktechWA.strings.error)).removeClass('success').addClass('error').fadeIn();
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).html(originalText);
+            $result.html('❌ ' + hoktechWA.strings.error).removeClass('success').addClass('error').fadeIn();
+        });
+    });
+
     // ========== Order Meta Box: Insert Variable Tags ==========
     $(document).on('click', '.hoktech-var-tag', function () {
         var varText = $(this).data('var');
@@ -389,5 +536,69 @@
         });
     });
 
+    // ========== Save Vendor Notification Settings ==========
+    $(document).on('submit', '#hoktech-vendor-notifications-form', function (e) {
+        e.preventDefault();
+
+        // خزّن reference للفورم قبل أي استدعاء async
+        var $form   = $(this);
+        var $btn    = $form.find('button[type="submit"]');
+        var $result = $('#hoktech-vendor-notif-result');
+
+        $btn.prop('disabled', true);
+
+        // جمع الحالات المختارة
+        var vendorStatuses = [];
+        $form.find('input[name="vendor_statuses[]"]:checked').each(function () {
+            vendorStatuses.push($(this).val());
+        });
+
+        // اقرأ كود الدولة من الحقل مباشرةً (ID أضمن من name)
+        var dialCode = $('#hoktech-vendor-dial-code').val() || $form.find('input[name="default_dial_code"]').val() || '';
+
+        $.post(hoktechWA.ajaxUrl, {
+            action:              'hoktech_save_vendor_notifications',
+            nonce:               hoktechWA.nonce,
+            vendor_notif_enabled: $form.find('input[name="vendor_notif_enabled"]').is(':checked') ? '1' : '',
+            phone_meta_key:      $form.find('input[name="phone_meta_key"]').val(),
+            default_dial_code:   dialCode,
+            vendor_message:      $form.find('textarea[name="vendor_message"]').val(),
+            vendor_item_format:  $form.find('textarea[name="vendor_item_format"]').val(),
+            vendor_statuses:     vendorStatuses
+        }, function (response) {
+            $btn.prop('disabled', false);
+            if (response.success) {
+                $result.html('✅ ' + response.data.message).removeClass('error').addClass('success').fadeIn();
+                setTimeout(function () { $result.fadeOut(); }, 3000);
+            } else {
+                $result.html('❌ ' + (response.data?.message || 'خطأ')).removeClass('success').addClass('error').fadeIn();
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false);
+            $result.html('❌ ' + hoktechWA.strings.error).removeClass('success').addClass('error').fadeIn();
+        });
+    });
+
+    // ========== Vendor Dial Code Preset Selector ==========
+    $(document).on('change', '#hoktech-vendor-dial-preset', function () {
+        var val = $(this).val();
+        if (val) {
+            $('#hoktech-vendor-dial-code').val(val);
+        } else {
+            $('#hoktech-vendor-dial-code').val('');
+        }
+    });
+
+    $(document).on('input', '#hoktech-vendor-dial-code', function () {
+        var val = $(this).val().replace(/[^0-9]/g, '');
+        var $preset = $('#hoktech-vendor-dial-preset');
+        if ($preset.find('option[value="' + val + '"]').length > 0) {
+            $preset.val(val);
+        } else {
+            $preset.val('');
+        }
+    });
+
 })(jQuery);
+
 

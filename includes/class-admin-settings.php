@@ -24,6 +24,30 @@ class HokTech_Admin_Settings {
         add_action('wp_ajax_hoktech_save_notifications', [$this, 'ajax_save_notifications']);
         add_action('wp_ajax_hoktech_save_otp_settings', [$this, 'ajax_save_otp_settings']);
         add_action('wp_ajax_hoktech_save_admin_notifications', [$this, 'ajax_save_admin_notifications']);
+        add_action('wp_ajax_hoktech_save_vendor_notifications', [$this, 'ajax_save_vendor_notifications']);
+        add_action('wp_ajax_hoktech_save_vendor_session', [$this, 'ajax_save_vendor_session']);
+
+        // Suppress all third-party admin notices on our plugin page
+        add_action('admin_init', [$this, 'suppress_admin_notices']);
+    }
+
+    /**
+     * Remove all admin notices (from other plugins/themes) on our own settings page.
+     * Runs at admin_init so we can hook into admin_notices early enough.
+     */
+    public function suppress_admin_notices() {
+        // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash($_GET['page'])) : '';
+
+        if ($page !== 'sender-notification') {
+            return;
+        }
+
+        // Remove standard WP notice hooks used by plugins/themes
+        remove_all_actions('admin_notices');
+        remove_all_actions('all_admin_notices');
+        remove_all_actions('user_admin_notices');
+        remove_all_actions('network_admin_notices');
     }
 
     public function add_menu() {
@@ -162,7 +186,7 @@ class HokTech_Admin_Settings {
                 $settings[$status] = [
                     'enabled'    => !empty($data['enabled']),
                     'send_image' => !empty($data['send_image']),
-                    'message'    => sanitize_textarea_field($data['message'] ?? ''),
+                    'message'    => hoktech_sanitize_textarea($data['message'] ?? ''),
                 ];
             }
         }
@@ -186,7 +210,7 @@ class HokTech_Admin_Settings {
             'enable_registration_otp' => !empty($_POST['enable_registration_otp']),
             'enable_country_selector' => !empty($_POST['enable_country_selector']),
             'default_country_code'    => sanitize_text_field(wp_unslash($_POST['default_country_code'] ?? 'EG')),
-            'otp_message'             => sanitize_textarea_field(wp_unslash($_POST['otp_message'] ?? '')),
+            'otp_message'             => hoktech_sanitize_textarea(wp_unslash($_POST['otp_message'] ?? '')),
         ];
 
         update_option('hoktech_wa_otp_settings', $settings);
@@ -205,8 +229,8 @@ class HokTech_Admin_Settings {
 
         $settings = [
             'enabled'  => !empty($_POST['enabled']),
-            'phones'   => sanitize_textarea_field(wp_unslash($_POST['phones'] ?? '')),
-            'message'  => sanitize_textarea_field(wp_unslash($_POST['message'] ?? '')),
+            'phones'   => hoktech_sanitize_textarea(wp_unslash($_POST['phones'] ?? '')),
+            'message'  => hoktech_sanitize_textarea(wp_unslash($_POST['message'] ?? '')),
             'statuses' => isset($_POST['statuses']) && is_array($_POST['statuses'])
                 ? array_map('sanitize_key', $_POST['statuses'])
                 : [],
@@ -214,6 +238,53 @@ class HokTech_Admin_Settings {
 
         update_option('hoktech_wa_admin_notifications', $settings);
         wp_send_json_success(['message' => __('تم حفظ إعدادات إشعارات الإدارة بنجاح', 'sender-notification')]);
+    }
+
+    /**
+     * AJAX: Save vendor notification settings
+     */
+    public function ajax_save_vendor_notifications() {
+        check_ajax_referer('hoktech_wa_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('صلاحيات غير كافية', 'sender-notification')]);
+        }
+
+        // Preserve existing session_id if not posted
+        $existing = get_option('hoktech_wa_vendor_notifications', []);
+
+        $settings = [
+            'enabled'           => !empty($_POST['vendor_notif_enabled']),
+            'phone_meta_key'    => sanitize_text_field(wp_unslash($_POST['phone_meta_key'] ?? '')),
+            'default_dial_code' => preg_replace('/[^0-9]/', '', wp_unslash($_POST['default_dial_code'] ?? '')),
+            'message'           => hoktech_sanitize_textarea(wp_unslash($_POST['vendor_message'] ?? '')),
+            'item_format'       => hoktech_sanitize_textarea(wp_unslash($_POST['vendor_item_format'] ?? ''), true),
+            'statuses'          => isset($_POST['vendor_statuses']) && is_array($_POST['vendor_statuses'])
+                ? array_map('sanitize_key', $_POST['vendor_statuses'])
+                : [],
+            'session_id'        => $existing['session_id'] ?? '',
+        ];
+
+        update_option('hoktech_wa_vendor_notifications', $settings);
+        wp_send_json_success(['message' => __('تم حفظ إعدادات إشعارات الفيندور بنجاح', 'sender-notification')]);
+    }
+
+    /**
+     * AJAX: Save vendor dedicated session
+     */
+    public function ajax_save_vendor_session() {
+        check_ajax_referer('hoktech_wa_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('صلاحيات غير كافية', 'sender-notification')]);
+        }
+
+        $session_id = sanitize_text_field(wp_unslash($_POST['vendor_session_id'] ?? ''));
+        $vendor_settings = get_option('hoktech_wa_vendor_notifications', []);
+        $vendor_settings['session_id'] = $session_id;
+        update_option('hoktech_wa_vendor_notifications', $vendor_settings);
+
+        wp_send_json_success(['message' => __('تم حفظ جلسة إرسال إشعارات الفيندور بنجاح', 'sender-notification')]);
     }
 
     /**
@@ -225,6 +296,7 @@ class HokTech_Admin_Settings {
         $notifications = get_option('hoktech_wa_notification_settings', []);
         $otp_settings = get_option('hoktech_wa_otp_settings', []);
         $admin_notifications = get_option('hoktech_wa_admin_notifications', []);
+        $vendor_notifications = get_option('hoktech_wa_vendor_notifications', []);
         ?>
         <div class="wrap hoktech-wrap" dir="rtl">
             <div class="hoktech-header">
@@ -259,6 +331,10 @@ class HokTech_Admin_Settings {
                 <button class="hoktech-tab" data-tab="messages">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: middle;"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                     <?php esc_html_e('رسائل مخصصة', 'sender-notification'); ?>
+                </button>
+                <button class="hoktech-tab" data-tab="vendors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: middle;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <?php esc_html_e('إشعارات الفيندور', 'sender-notification'); ?>
                 </button>
             </div>
 
@@ -414,7 +490,7 @@ class HokTech_Admin_Settings {
                         <p class="hoktech-description"><?php esc_html_e('قم بتفعيل وتخصيص الرسائل لكل حالة من حالات الطلب', 'sender-notification'); ?></p>
                         <div class="hoktech-placeholders-info">
                             <strong><?php esc_html_e('المتغيرات المتاحة:', 'sender-notification'); ?></strong>
-                            <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code>
+                            <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code>
                         </div>
                         <form id="hoktech-notifications-form">
                             <?php
@@ -460,7 +536,10 @@ class HokTech_Admin_Settings {
                                     <span class="hoktech-notification-label" style="font-size: 13px; color: #666;"><?php esc_html_e('إرفاق صورة منتج', 'sender-notification'); ?></span>
                                 </div>
                                 <div class="hoktech-notification-body">
-                                    <textarea name="notifications[<?php echo esc_attr($status); ?>][message]" class="hoktech-textarea" rows="3" placeholder="<?php esc_attr_e('اكتب رسالة الإشعار...', 'sender-notification'); ?>"><?php echo esc_textarea($setting['message'] ?? ''); ?></textarea>
+                                    <textarea name="notifications[<?php echo esc_attr($status); ?>][message]" class="hoktech-textarea" rows="3" placeholder="<?php esc_attr_e('اكتب رسالة الإشعار...', 'sender-notification'); ?>"><?php 
+                                        $notif_msg_val = $setting['message'] ?? '';
+                                        echo "\n" . esc_textarea($notif_msg_val) . "\n"; 
+                                    ?></textarea>
                                 </div>
                             </div>
                             <?php endforeach; ?>
@@ -497,7 +576,10 @@ class HokTech_Admin_Settings {
 
                             <div class="hoktech-form-group">
                                 <label for="hoktech-admin-phones"><?php esc_html_e('أرقام هواتف الإدارة', 'sender-notification'); ?></label>
-                                <textarea id="hoktech-admin-phones" name="admin_phones" class="hoktech-textarea" rows="3" placeholder="<?php esc_attr_e('رقم واحد في كل سطر مثل:\n201234567890\n201098765432', 'sender-notification'); ?>"><?php echo esc_textarea($admin_notifications['phones'] ?? ''); ?></textarea>
+                                <textarea id="hoktech-admin-phones" name="admin_phones" class="hoktech-textarea" rows="3" placeholder="<?php esc_attr_e('رقم واحد في كل سطر مثل:\n201234567890\n201098765432', 'sender-notification'); ?>"><?php 
+                                    $admin_phones_val = $admin_notifications['phones'] ?? '';
+                                    echo "\n" . esc_textarea($admin_phones_val) . "\n"; 
+                                ?></textarea>
                                 <p class="description"><?php esc_html_e('أدخل رقم واحد في كل سطر أو افصل بينهم بفاصلة', 'sender-notification'); ?></p>
                             </div>
 
@@ -520,10 +602,13 @@ class HokTech_Admin_Settings {
 
                             <div class="hoktech-form-group">
                                 <label for="hoktech-admin-message"><?php esc_html_e('قالب رسالة الإدارة', 'sender-notification'); ?></label>
-                                <textarea id="hoktech-admin-message" name="admin_message" class="hoktech-textarea" rows="4" placeholder="<?php esc_attr_e('🔔 طلب جديد #{order_id}\nالعميل: {customer_name}\nالمبلغ: {order_total}\nالحالة: {order_status}', 'sender-notification'); ?>"><?php echo esc_textarea($admin_notifications['message'] ?? ''); ?></textarea>
+                                <textarea id="hoktech-admin-message" name="admin_message" class="hoktech-textarea" rows="4" placeholder="<?php esc_attr_e('🔔 طلب جديد #{order_id}\nالعميل: {customer_name}\nالمبلغ: {order_total}\nالحالة: {order_status}', 'sender-notification'); ?>"><?php 
+                                    $admin_msg_val = $admin_notifications['message'] ?? '';
+                                    echo "\n" . esc_textarea($admin_msg_val) . "\n"; 
+                                ?></textarea>
                                 <div class="hoktech-placeholders-info" style="margin-top: 10px; margin-bottom: 0;">
                                     <strong><?php esc_html_e('المتغيرات المتاحة:', 'sender-notification'); ?></strong>
-                                    <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code>
+                                    <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code>
                                 </div>
                             </div>
 
@@ -611,7 +696,10 @@ class HokTech_Admin_Settings {
                             </div>
                             <div class="hoktech-form-group">
                                 <label for="hoktech-otp-message"><?php esc_html_e('نص رسالة OTP (اختياري)', 'sender-notification'); ?></label>
-                                <textarea id="hoktech-otp-message" name="otp_message" class="hoktech-textarea" rows="2" placeholder="رمز التحقق الخاص بك هو: {otp_code}"><?php echo esc_textarea($otp_settings['otp_message'] ?? ''); ?></textarea>
+                                <textarea id="hoktech-otp-message" name="otp_message" class="hoktech-textarea" rows="2" placeholder="رمز التحقق الخاص بك هو: {otp_code}"><?php 
+                                    $otp_msg_val = $otp_settings['otp_message'] ?? '';
+                                    echo "\n" . esc_textarea($otp_msg_val) . "\n"; 
+                                ?></textarea>
                                 <p class="description"><?php esc_html_e('اتركه فارغاً لاستخدام الرسالة الافتراضية من المنصة', 'sender-notification'); ?></p>
                             </div>
                             <div class="hoktech-form-actions">
@@ -652,6 +740,164 @@ class HokTech_Admin_Settings {
                             </div>
                         </form>
                         <div id="hoktech-message-result" class="hoktech-result" style="display:none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vendor Notifications Tab -->
+            <div class="hoktech-tab-content" id="tab-vendors">
+                <div class="hoktech-card">
+                    <div class="hoktech-card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 10px; vertical-align: middle;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                        <h2><?php esc_html_e('إشعارات الفيندور (Multi-Vendor)', 'sender-notification'); ?></h2>
+                    </div>
+                    <div class="hoktech-card-body">
+                        <p class="hoktech-description">
+                            <?php esc_html_e('عند تغيير حالة الطلب، يتم إرسال رسالة واتساب لكل فيندور تحتوي فقط على الأيتم الخاصة به.', 'sender-notification'); ?>
+                        </p>
+
+                        <!-- Multi-vendor plugin detection -->
+                        <?php
+                        $detected_plugins = [];
+                        if (function_exists('dokan_get_vendor_by_product'))   $detected_plugins[] = 'Dokan';
+                        if (class_exists('WCV_Vendors'))                      $detected_plugins[] = 'WC Vendors';
+                        if (function_exists('wcfm_get_vendor_id_by_post'))    $detected_plugins[] = 'WCFM';
+                        if (!empty($detected_plugins)): ?>
+                        <div class="hoktech-placeholders-info" style="background:#e8f5e9;border-color:#a5d6a7;margin-bottom:18px;">
+                            <strong style="color:#2e7d32;">✅ <?php esc_html_e('إضافة Multi-Vendor مكتشفة:', 'sender-notification'); ?></strong>
+                            <?php echo esc_html(implode(', ', $detected_plugins)); ?>
+                        </div>
+                        <?php else: ?>
+                        <div class="hoktech-placeholders-info" style="background:#fff3e0;border-color:#ffcc02;margin-bottom:18px;">
+                            <strong style="color:#e65100;">⚠️ <?php esc_html_e('لم يتم اكتشاف إضافة Multi-Vendor. سيتم استخدام مالك المنتج (post_author) كفيندور.', 'sender-notification'); ?></strong>
+                        </div>
+                        <?php endif; ?>
+
+                        <form id="hoktech-vendor-notifications-form">
+                            <!-- Enable/Disable toggle -->
+                            <div class="hoktech-otp-option" style="margin-bottom: 20px;">
+                                <label class="hoktech-toggle">
+                                    <input type="checkbox" name="vendor_notif_enabled" value="1" <?php checked(!empty($vendor_notifications['enabled'])); ?>>
+                                    <span class="hoktech-toggle-slider"></span>
+                                </label>
+                                <div class="hoktech-otp-option-info">
+                                    <strong><?php esc_html_e('تفعيل إشعارات الفيندور', 'sender-notification'); ?></strong>
+                                    <p><?php esc_html_e('عند التفعيل، يتلقى كل فيندور رسالة واتساب بالأيتم الخاصة به فقط عند تغيير حالة الطلب', 'sender-notification'); ?></p>
+                                </div>
+                            </div>
+
+                            <!-- Statuses -->
+                            <div class="hoktech-form-group">
+                                <label><?php esc_html_e('الحالات التي تُرسَل فيها الإشعارات', 'sender-notification'); ?></label>
+                                <div class="hoktech-admin-statuses-grid">
+                                    <?php
+                                    $wc_statuses_vendor = function_exists('wc_get_order_statuses') ? wc_get_order_statuses() : [];
+                                    $enabled_vendor_statuses = $vendor_notifications['statuses'] ?? ['processing'];
+                                    foreach ($wc_statuses_vendor as $status_key => $status_label):
+                                        $status_clean = str_replace('wc-', '', $status_key);
+                                    ?>
+                                    <label class="hoktech-admin-status-item">
+                                        <input type="checkbox" name="vendor_statuses[]" value="<?php echo esc_attr($status_clean); ?>" <?php checked(in_array($status_clean, $enabled_vendor_statuses, true)); ?>>
+                                        <span><?php echo esc_html($status_label); ?></span>
+                                    </label>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+
+                            <!-- Phone meta key -->
+                            <div class="hoktech-form-group">
+                                <label for="hoktech-vendor-phone-meta"><?php esc_html_e('مفتاح حقل رقم هاتف الفيندور (اختياري)', 'sender-notification'); ?></label>
+                                <input type="text" id="hoktech-vendor-phone-meta" name="phone_meta_key" class="hoktech-input" value="<?php echo esc_attr($vendor_notifications['phone_meta_key'] ?? ''); ?>" placeholder="<?php esc_attr_e('مثال: vendor_whatsapp أو billing_phone', 'sender-notification'); ?>">
+                                <p class="description"><?php esc_html_e('إذا كان الفيندور يخزن رقم هاتفه في حقل user_meta مخصص، أدخل اسم الحقل هنا. اتركه فارغاً لاستخدام الكشف التلقائي.', 'sender-notification'); ?></p>
+                            </div>
+
+                            <!-- Default dial code -->
+                            <div class="hoktech-form-group">
+                                <label for="hoktech-vendor-dial-code"><?php esc_html_e('كود الدولة الافتراضي لأرقام الفيندور', 'sender-notification'); ?></label>
+                                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                                    <input type="text" id="hoktech-vendor-dial-code" name="default_dial_code" class="hoktech-input" style="max-width:160px;" value="<?php echo esc_attr($vendor_notifications['default_dial_code'] ?? ''); ?>" placeholder="<?php esc_attr_e('مثال: 20', 'sender-notification'); ?>">
+                                    <select id="hoktech-vendor-dial-preset" class="hoktech-select" style="max-width:220px;">
+                                        <option value=""><?php esc_html_e('-- اختر دولة --', 'sender-notification'); ?></option>
+                                        <option value="20" <?php selected($vendor_notifications['default_dial_code'] ?? '', '20'); ?>>🇪🇬 مصر (+20)</option>
+                                        <option value="966" <?php selected($vendor_notifications['default_dial_code'] ?? '', '966'); ?>>🇸🇦 السعودية (+966)</option>
+                                        <option value="971" <?php selected($vendor_notifications['default_dial_code'] ?? '', '971'); ?>>🇦🇪 الإمارات (+971)</option>
+                                        <option value="965" <?php selected($vendor_notifications['default_dial_code'] ?? '', '965'); ?>>🇰🇼 الكويت (+965)</option>
+                                        <option value="962" <?php selected($vendor_notifications['default_dial_code'] ?? '', '962'); ?>>🇯🇴 الأردن (+962)</option>
+                                        <option value="974" <?php selected($vendor_notifications['default_dial_code'] ?? '', '974'); ?>>🇶🇦 قطر (+974)</option>
+                                        <option value="973" <?php selected($vendor_notifications['default_dial_code'] ?? '', '973'); ?>>🇧🇭 البحرين (+973)</option>
+                                        <option value="968" <?php selected($vendor_notifications['default_dial_code'] ?? '', '968'); ?>>🇴🇲 عُمان (+968)</option>
+                                        <option value="218" <?php selected($vendor_notifications['default_dial_code'] ?? '', '218'); ?>>🇱🇾 ليبيا (+218)</option>
+                                        <option value="216" <?php selected($vendor_notifications['default_dial_code'] ?? '', '216'); ?>>🇹🇳 تونس (+216)</option>
+                                        <option value="213" <?php selected($vendor_notifications['default_dial_code'] ?? '', '213'); ?>>🇩🇿 الجزائر (+213)</option>
+                                        <option value="212" <?php selected($vendor_notifications['default_dial_code'] ?? '', '212'); ?>>🇲🇦 المغرب (+212)</option>
+                                    </select>
+                                </div>
+                                <p class="description"><?php esc_html_e('إذا كان رقم الفيندور بدون كود الدولة (مثل 01006...) سيُضاف هذا الكود تلقائياً. اتركه فارغاً لعدم التطبيق.', 'sender-notification'); ?></p>
+                            </div>
+
+                            <!-- Product Item Format -->
+                            <div class="hoktech-form-group">
+                                <label for="hoktech-vendor-item-format"><?php esc_html_e('تنسيق سطر المنتج في رسالة الفيندور', 'sender-notification'); ?></label>
+                                <textarea id="hoktech-vendor-item-format" name="vendor_item_format" class="hoktech-textarea" rows="3" placeholder="<?php esc_attr_e('- {product_name} x{product_qty} ({product_subtotal})', 'sender-notification'); ?>"><?php 
+                                    $item_format_val = $vendor_notifications['item_format'] ?? '- {product_name} x{product_qty} ({product_subtotal})';
+                                    echo "\n" . esc_textarea($item_format_val) . "\n"; 
+                                ?></textarea>
+                                <div class="hoktech-placeholders-info" style="margin-top: 10px; margin-bottom: 0;">
+                                    <strong><?php esc_html_e('المتغيرات المتاحة لسطر المنتج:', 'sender-notification'); ?></strong><br>
+                                    <code>{product_name}</code> <?php esc_html_e('اسم المنتج', 'sender-notification'); ?> &nbsp;
+                                    <code>{product_qty}</code> <?php esc_html_e('الكمية', 'sender-notification'); ?> &nbsp;
+                                    <code>{product_sku}</code> <?php esc_html_e('الـ SKU', 'sender-notification'); ?> &nbsp;
+                                    <code>{product_url}</code> <?php esc_html_e('رابط المنتج', 'sender-notification'); ?> &nbsp;
+                                    <code>{product_subtotal}</code> <?php esc_html_e('سعر المنتجات', 'sender-notification'); ?>
+                                </div>
+                            </div>
+
+                            <!-- Message template -->
+                            <div class="hoktech-form-group">
+                                <label for="hoktech-vendor-message"><?php esc_html_e('قالب رسالة الفيندور', 'sender-notification'); ?></label>
+                                <textarea id="hoktech-vendor-message" name="vendor_message" class="hoktech-textarea" rows="7"><?php 
+                                    $vendor_message_val = $vendor_notifications['message'] ?? '';
+                                    echo "\n" . esc_textarea($vendor_message_val) . "\n"; 
+                                ?></textarea>
+                                <div class="hoktech-placeholders-info" style="margin-top: 10px; margin-bottom: 0;">
+                                    <strong><?php esc_html_e('المتغيرات المتاحة للرسالة:', 'sender-notification'); ?></strong><br>
+                                    <code>{vendor_name}</code> <?php esc_html_e('اسم متجر الفيندور', 'sender-notification'); ?> &nbsp;
+                                    <code>{vendor_items}</code> <?php esc_html_e('الأيتم الخاصة بهذا الفيندور فقط', 'sender-notification'); ?> &nbsp;
+                                    <code>{vendor_items_total}</code> <?php esc_html_e('إجمالي أيتم الفيندور', 'sender-notification'); ?><br style="margin:4px 0">
+                                    <code>{order_id}</code> / <code>{sub_order_id}</code> (<?php esc_html_e('رقم الطلب الفرعي', 'sender-notification'); ?>) &nbsp;
+                                    <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code>
+                                </div>
+                            </div>
+
+                            <!-- Vendor Dedicated Session -->
+                            <div class="hoktech-form-group" style="border-top: 1px solid #e0e0e0; padding-top: 20px; margin-top: 10px;">
+                                <label><?php esc_html_e('جلسة إرسال مخصصة للفيندور (اختياري)', 'sender-notification'); ?></label>
+                                <p class="description" style="margin-bottom: 12px;"><?php esc_html_e('اختر جلسة واتساب مستقلة لإرسال الرسائل للفيندورز. إذا تركتها فارغة، سيتم استخدام نفس الجلسة الافتراضية المستخدمة لإشعارات العملاء.', 'sender-notification'); ?></p>
+                                <div class="hoktech-session-row">
+                                    <select id="hoktech-vendor-session-select" class="hoktech-select">
+                                        <option value=""><?php esc_html_e('-- نفس جلسة العملاء (افتراضي) --', 'sender-notification'); ?></option>
+                                    </select>
+                                    <button type="button" id="hoktech-vendor-refresh-sessions" class="button">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 6px; vertical-align: middle;"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                                        <?php esc_html_e('تحديث', 'sender-notification'); ?>
+                                    </button>
+                                    <button type="button" id="hoktech-vendor-save-session" class="button button-primary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 6px; vertical-align: middle;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                        <?php esc_html_e('حفظ الجلسة', 'sender-notification'); ?>
+                                    </button>
+                                </div>
+                                <div id="hoktech-vendor-session-result" class="hoktech-result" style="display:none; margin-top:8px;"></div>
+                                <input type="hidden" id="hoktech-vendor-current-session" value="<?php echo esc_attr($vendor_notifications['session_id'] ?? ''); ?>">
+                            </div>
+
+                            <div class="hoktech-form-actions">
+                                <button type="submit" class="button button-primary" id="hoktech-vendor-notif-save">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: middle;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                    <?php esc_html_e('حفظ إعدادات الفيندور', 'sender-notification'); ?>
+                                </button>
+                            </div>
+                        </form>
+                        <div id="hoktech-vendor-notif-result" class="hoktech-result" style="display:none;"></div>
                     </div>
                 </div>
             </div>

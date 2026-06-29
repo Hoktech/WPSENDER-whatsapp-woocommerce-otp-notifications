@@ -20,6 +20,8 @@ class HokTech_Order_MetaBox {
 
         // AJAX handler for sending message from meta box
         add_action('wp_ajax_hoktech_send_order_message', [$this, 'ajax_send_order_message']);
+        add_action('wp_ajax_hoktech_resend_customer_notif', [$this, 'ajax_resend_customer_notif']);
+        add_action('wp_ajax_hoktech_resend_vendor_notif', [$this, 'ajax_resend_vendor_notif']);
 
         // Enqueue scripts on order edit pages
         add_action('admin_enqueue_scripts', [$this, 'enqueue_order_scripts']);
@@ -76,7 +78,8 @@ class HokTech_Order_MetaBox {
         if (!$is_order_page) return;
 
         wp_enqueue_style('hoktech-wa-metabox', HOKTECH_WA_PLUGIN_URL . 'assets/css/admin-style.css', [], HOKTECH_WA_VERSION);
-        wp_enqueue_script('hoktech-wa-metabox', HOKTECH_WA_PLUGIN_URL . 'assets/js/admin-script.js', ['jquery'], HOKTECH_WA_VERSION, true);
+        $metabox_js_ver = HOKTECH_WA_VERSION . '-' . filemtime(HOKTECH_WA_PLUGIN_DIR . 'assets/js/admin-script.js');
+        wp_enqueue_script('hoktech-wa-metabox', HOKTECH_WA_PLUGIN_URL . 'assets/js/admin-script.js', ['jquery'], $metabox_js_ver, true);
         wp_localize_script('hoktech-wa-metabox', 'hoktechWA', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce'   => wp_create_nonce('hoktech_wa_nonce'),
@@ -149,6 +152,8 @@ class HokTech_Order_MetaBox {
                                 <code class="hoktech-var-tag" data-var="{customer_name}">{customer_name}</code>
                                 <code class="hoktech-var-tag" data-var="{order_total}">{order_total}</code>
                                 <code class="hoktech-var-tag" data-var="{order_status}">{order_status}</code>
+                                <code class="hoktech-var-tag" data-var="{sku}">{sku}</code>
+                                <code class="hoktech-var-tag" data-var="{product_url}">{product_url}</code>
                                 <code class="hoktech-var-tag" data-var="{site_name}">{site_name}</code>
                             </div>
                         </div>
@@ -167,6 +172,29 @@ class HokTech_Order_MetaBox {
                         </button>
 
                         <div id="hoktech-order-msg-result" class="hoktech-metabox-result" style="display:none;"></div>
+
+                        <div class="hoktech-metabox-divider" style="margin: 15px 0; border-top: 1px dashed #ccc;"></div>
+
+                        <div class="hoktech-metabox-resend-section">
+                            <strong style="display:block; margin-bottom:10px; font-size:13px; color:#333;"><?php esc_html_e('إعادة إرسال الإشعارات التلقائية:', 'sender-notification'); ?></strong>
+                            
+                            <div style="display:flex; flex-direction:column; gap:8px;">
+                                <button type="button"
+                                        id="hoktech-resend-customer-notif"
+                                        class="button"
+                                        style="text-align:right; width:100%; display:flex; align-items:center; gap:6px; justify-content:center;">
+                                    <span>📨</span> <?php esc_html_e('إعادة إرسال إشعار العميل', 'sender-notification'); ?>
+                                </button>
+
+                                <button type="button"
+                                        id="hoktech-resend-vendor-notif"
+                                        class="button"
+                                        style="text-align:right; width:100%; display:flex; align-items:center; gap:6px; justify-content:center;">
+                                    <span>🏪</span> <?php esc_html_e('إعادة إرسال إشعار الفيندورز', 'sender-notification'); ?>
+                                </button>
+                            </div>
+                            <div id="hoktech-resend-result" class="hoktech-metabox-result" style="display:none; margin-top:8px;"></div>
+                        </div>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
@@ -185,7 +213,7 @@ class HokTech_Order_MetaBox {
         }
 
         $phone    = sanitize_text_field(wp_unslash($_POST['phone'] ?? ''));
-        $message  = sanitize_textarea_field(wp_unslash($_POST['message'] ?? ''));
+        $message  = hoktech_sanitize_textarea(wp_unslash($_POST['message'] ?? ''));
         $order_id = absint($_POST['order_id'] ?? 0);
 
         if (empty($phone) || empty($message)) {
@@ -232,13 +260,76 @@ class HokTech_Order_MetaBox {
     }
 
     /**
+     * AJAX: Resend customer status notification
+     */
+    public function ajax_resend_customer_notif() {
+        check_ajax_referer('hoktech_wa_nonce', 'nonce');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_send_json_error(['message' => __('صلاحيات غير كافية', 'sender-notification')]);
+        }
+
+        $order_id = absint($_POST['order_id'] ?? 0);
+        if (!$order_id) {
+            wp_send_json_error(['message' => __('الطلب غير محدد', 'sender-notification')]);
+        }
+
+        $notifications = new HokTech_Order_Notifications();
+        $result = $notifications->send_status_notification($order_id, '', true);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
+     * AJAX: Resend vendor status notifications
+     */
+    public function ajax_resend_vendor_notif() {
+        check_ajax_referer('hoktech_wa_nonce', 'nonce');
+
+        if (!current_user_can('edit_shop_orders')) {
+            wp_send_json_error(['message' => __('صلاحيات غير كافية', 'sender-notification')]);
+        }
+
+        $order_id = absint($_POST['order_id'] ?? 0);
+        if (!$order_id) {
+            wp_send_json_error(['message' => __('الطلب غير محدد', 'sender-notification')]);
+        }
+
+        $vendor_notifications = new HokTech_Vendor_Notifications();
+        $result = $vendor_notifications->send_vendor_notifications_manually($order_id);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error($result);
+        }
+    }
+
+    /**
      * Replace template placeholders with order data
      */
     private function parse_template($template, $order) {
         $items_text = [];
+        $skus = [];
+        $urls = [];
         foreach ($order->get_items() as $item) {
             $items_text[] = '- ' . $item->get_name() . ' x' . $item->get_quantity();
+            $product = $item->get_product();
+            if ($product) {
+                if ($product->get_sku()) {
+                    $skus[] = $product->get_sku();
+                }
+                if ($product->get_permalink()) {
+                    $urls[] = $product->get_permalink();
+                }
+            }
         }
+        $sku_list = !empty($skus) ? implode(', ', $skus) : '';
+        $url_list = !empty($urls) ? implode(', ', $urls) : '';
 
         $clean_total = html_entity_decode(wp_strip_all_tags($order->get_formatted_order_total()), ENT_QUOTES, 'UTF-8');
 
@@ -250,6 +341,8 @@ class HokTech_Order_MetaBox {
             '{site_name}'      => get_bloginfo('name'),
             '{order_items}'    => implode("\n", $items_text),
             '{billing_phone}'  => $order->get_billing_phone(),
+            '{sku}'            => $sku_list,
+            '{product_url}'    => $url_list,
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $template);
