@@ -165,20 +165,21 @@ final class HokTech_sender {
         $otp_settings = get_option('hoktech_wa_otp_settings', []);
         $country_selector_enabled = !empty($otp_settings['enable_country_selector']);
         $otp_enabled = !empty($otp_settings['enable_checkout_otp']) || !empty($otp_settings['enable_registration_otp']);
+        $is_checkout = function_exists('is_checkout') && is_checkout();
 
-        if ($otp_enabled || $country_selector_enabled) {
+        if ($otp_enabled || $country_selector_enabled || $is_checkout) {
             wp_enqueue_style('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/css/frontend-style.css', [], HOKTECH_WA_VERSION);
             wp_enqueue_script('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/js/frontend-otp.js', ['jquery'], HOKTECH_WA_VERSION, true);
 
             $localize_data = [
-                'ajaxUrl' => admin_url('admin-ajax.php'),
-                'nonce'   => wp_create_nonce('hoktech_otp_nonce'),
+                'ajaxUrl'        => admin_url('admin-ajax.php'),
+                'nonce'          => wp_create_nonce('hoktech_otp_nonce'),
+                'defaultCountry' => $otp_settings['default_country_code'] ?? 'EG',
             ];
 
-            // Pass country codes data if selector is enabled
-            if ($country_selector_enabled && function_exists('hoktech_get_country_codes')) {
-                $localize_data['countrySelector'] = true;
-                $localize_data['defaultCountry']  = $otp_settings['default_country_code'] ?? 'EG';
+            // Pass country codes data if available
+            if (function_exists('hoktech_get_country_codes')) {
+                $localize_data['countrySelector'] = $country_selector_enabled;
                 $localize_data['countries']       = hoktech_get_country_codes();
             }
 

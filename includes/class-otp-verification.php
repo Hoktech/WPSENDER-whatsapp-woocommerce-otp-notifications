@@ -18,6 +18,10 @@ class HokTech_OTP_Verification {
 
         $settings = get_option('hoktech_wa_otp_settings', []);
 
+        // Always validate Egyptian phone number length at checkout
+        add_action('woocommerce_after_checkout_validation', [$this, 'validate_egypt_phone_array'], 10, 2);
+        add_action('woocommerce_store_api_checkout_update_order_from_request', [$this, 'validate_blocks_egypt_phone'], 10, 2);
+
         // Checkout OTP — works with both Blocks and Classic checkout
         if (!empty($settings['enable_checkout_otp']) && $this->api->is_connected()) {
             // Render OTP field via wp_footer so it works for BOTH Blocks and Classic
@@ -193,6 +197,84 @@ class HokTech_OTP_Verification {
     }
 
     /**
+     * Helper to validate Egyptian phone numbers
+     */
+    private function is_valid_egypt_phone($phone) {
+        $digits = preg_replace('/[^0-9]/', '', $phone);
+        if (empty($digits)) {
+            return false;
+        }
+
+        // If dial code 20 was prepended (12 digits total, e.g. 201012345678)
+        if (substr($digits, 0, 2) === '20') {
+            return (strlen($digits) === 12 && substr($digits, 0, 3) === '201');
+        }
+
+        // Local format (11 digits starting with 01, e.g., 01012345678)
+        return (strlen($digits) === 11 && substr($digits, 0, 2) === '01');
+    }
+
+    /**
+     * Get checkout country from POST request or settings
+     */
+    private function get_checkout_country($data = []) {
+        $country = isset($_POST['hoktech_country_code']) ? sanitize_text_field(wp_unslash($_POST['hoktech_country_code'])) : '';
+        if (empty($country) && isset($_POST['billing_country'])) {
+            $country = sanitize_text_field(wp_unslash($_POST['billing_country']));
+        }
+        if (empty($country) && !empty($data['billing_country'])) {
+            $country = $data['billing_country'];
+        }
+        if (empty($country)) {
+            $settings = get_option('hoktech_wa_otp_settings', []);
+            $country = $settings['default_country_code'] ?? 'EG';
+        }
+        return $country;
+    }
+
+    /**
+     * Validate Egyptian phone number at Classic Checkout process
+     */
+    public function validate_egypt_phone() {
+        $country = $this->get_checkout_country();
+        $phone   = isset($_POST['billing_phone']) ? sanitize_text_field(wp_unslash($_POST['billing_phone'])) : '';
+
+        if ($country === 'EG' && !empty($phone)) {
+            if (!$this->is_valid_egypt_phone($phone)) {
+                wc_add_notice(__('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification'), 'error');
+            }
+        }
+    }
+
+    /**
+     * Validate Egyptian phone number at Classic Checkout validation fallback
+     */
+    public function validate_egypt_phone_array($data, $errors) {
+        $country = $this->get_checkout_country($data);
+        $phone   = isset($data['billing_phone']) ? $data['billing_phone'] : (isset($_POST['billing_phone']) ? sanitize_text_field(wp_unslash($_POST['billing_phone'])) : '');
+
+        if ($country === 'EG' && !empty($phone)) {
+            if (!$this->is_valid_egypt_phone($phone)) {
+                $errors->add('billing_phone_error', __('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification'));
+            }
+        }
+    }
+
+    /**
+     * Validate Egyptian phone number at WooCommerce Blocks Checkout (Store API)
+     */
+    public function validate_blocks_egypt_phone($order, $request) {
+        $phone   = $order->get_billing_phone();
+        $country = $order->get_billing_country() ?: $this->get_checkout_country();
+
+        if ($country === 'EG' && !empty($phone)) {
+            if (!$this->is_valid_egypt_phone($phone)) {
+                throw new \Exception(esc_html__('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification'));
+            }
+        }
+    }
+
+    /**
      * Validate OTP at checkout — Classic checkout (woocommerce_checkout_process)
      */
     public function validate_checkout_otp() {
@@ -307,12 +389,20 @@ class HokTech_OTP_Verification {
 
         $phone = sanitize_text_field(wp_unslash($_POST['phone'] ?? ''));
 
-        if (empty($phone)) {
-            wp_send_json_error(['message' => __('رقم الهاتف مطلوب', 'sender-notification')]);
-        }
-
         // Clean phone number
         $phone = preg_replace('/[^0-9]/', '', $phone);
+
+        // Validate Egyptian phone numbers
+        $country = isset($_POST['hoktech_country_code']) ? sanitize_text_field(wp_unslash($_POST['hoktech_country_code'])) : '';
+        if (empty($country)) {
+            $country = $this->get_checkout_country();
+        }
+
+        if ($country === 'EG' || (strlen($phone) === 11 && substr($phone, 0, 2) === '01')) {
+            if (!$this->is_valid_egypt_phone($phone)) {
+                wp_send_json_error(['message' => __('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification')]);
+            }
+        }
 
         // Get custom OTP message
         $settings = get_option('hoktech_wa_otp_settings', []);

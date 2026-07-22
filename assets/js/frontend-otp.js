@@ -169,6 +169,8 @@
             // WooCommerce Blocks: observe country changes via MutationObserver
             observeBlocksCountry(countries);
 
+            initEgyptPhoneRestriction();
+
             return true;
         }
 
@@ -224,9 +226,126 @@
                 $('#hoktech-selected-dial').val(c.dial_code);
                 $('.hoktech-country-flag').text(c.flag);
                 $('.hoktech-country-dial').text(c.dial_code);
+                initEgyptPhoneRestriction();
                 return;
             }
         }
+    }
+
+    /**
+     * Get active country code
+     */
+    function getActiveCountry() {
+        var c = $('#hoktech-selected-country').val() || getWcCountry();
+        if (!c && typeof hoktechOTP !== 'undefined' && hoktechOTP.defaultCountry) {
+            c = hoktechOTP.defaultCountry;
+        }
+        return c || 'EG';
+    }
+
+    /**
+     * Clean and format input for Egyptian phone numbers (digits only, max 11 chars)
+     */
+    function cleanEgyptInput(val) {
+        if (!val) return '';
+        var digits = val.replace(/[^0-9]/g, '');
+        // If user pasted with country code 201xxxxxxxxx (12 digits starting with 201)
+        if (digits.length === 12 && digits.indexOf('201') === 0) {
+            digits = '0' + digits.substring(2);
+        }
+        if (digits.length > 11) {
+            digits = digits.substring(0, 11);
+        }
+        return digits;
+    }
+
+    /**
+     * Show or clear inline error under phone field and add red border highlight
+     */
+    function setPhoneFieldError(errorMessage) {
+        var $phoneField = $('input#phone, input[id*="shipping-phone"], input#billing_phone, input[name*="phone"], input#reg_phone').first();
+        if (!$phoneField.length) return;
+
+        var $wrapper = $phoneField.closest('.hoktech-phone-wrapper');
+        var $targetContainer = $wrapper.length ? $wrapper : $phoneField;
+
+        // Remove existing error message element if any
+        $('.hoktech-phone-error-msg').remove();
+
+        if (errorMessage) {
+            $targetContainer.addClass('hoktech-has-error');
+            $phoneField.addClass('hoktech-has-error');
+
+            var errorHtml = '<div class="hoktech-phone-error-msg">' + errorMessage + '</div>';
+            if ($wrapper.length) {
+                $wrapper.after(errorHtml);
+            } else {
+                $phoneField.after(errorHtml);
+            }
+        } else {
+            $targetContainer.removeClass('hoktech-has-error');
+            $phoneField.removeClass('hoktech-has-error');
+        }
+    }
+
+    /**
+     * Apply phone number restrictions based on selected country (e.g., 11 digits for Egypt)
+     */
+    function initEgyptPhoneRestriction() {
+        var $phoneFields = $('input#phone, input[id*="shipping-phone"], input#billing_phone, input[name*="phone"], input#reg_phone');
+        if (!$phoneFields.length) return;
+
+        $phoneFields.each(function () {
+            var $field = $(this);
+
+            function updateFieldState() {
+                var country = getActiveCountry();
+                if (country === 'EG') {
+                    $field.attr('maxlength', '11');
+                    var currentVal = $field.val();
+                    if (currentVal) {
+                        var cleaned = cleanEgyptInput(currentVal);
+                        if (cleaned !== currentVal) {
+                            $field.val(cleaned);
+                        }
+                    }
+                } else {
+                    $field.attr('maxlength', '15');
+                    setPhoneFieldError(null);
+                }
+            }
+
+            if (!$field.data('hoktech-bound')) {
+                $field.data('hoktech-bound', true);
+
+                $field.on('input propertychange paste keyup blur', function () {
+                    var country = getActiveCountry();
+                    if (country === 'EG') {
+                        var raw = $(this).val();
+                        var cleaned = cleanEgyptInput(raw);
+                        if (raw !== cleaned) {
+                            $(this).val(cleaned);
+                        }
+                        var digits = cleaned.replace(/[^0-9]/g, '');
+                        if (digits.length === 0) {
+                            setPhoneFieldError(null);
+                        } else if (digits.length < 11) {
+                            setPhoneFieldError('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)');
+                        } else if (digits.length === 11) {
+                            if (digits.indexOf('01') !== 0) {
+                                setPhoneFieldError('رقم الهاتف المصري يجب أن يبدأ بـ (01)');
+                            } else {
+                                setPhoneFieldError(null);
+                            }
+                        }
+                    } else {
+                        setPhoneFieldError(null);
+                    }
+                });
+            }
+
+            updateFieldState();
+        });
     }
 
     /**
@@ -266,6 +385,7 @@
                     selectCountry(wc, countries);
                 }
             }
+            initEgyptPhoneRestriction();
         });
 
         // Observe the checkout form for changes
@@ -332,10 +452,25 @@
 
     // ========== Checkout OTP ==========
     $(document).on('click', '#hoktech-send-checkout-otp', function () {
+        var country = getActiveCountry();
+        var $phoneField = $('input#phone, input[id*="phone"], input#billing_phone, input[name*="phone"]').first();
+        var rawPhone = $phoneField.val() || '';
+        if (country === 'EG') {
+            var digits = rawPhone.replace(/[^0-9]/g, '');
+            if (digits.length !== 11 || digits.indexOf('01') !== 0) {
+                var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
+                    ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)';
+                setPhoneFieldError(msg);
+                $phoneField.focus();
+                return;
+            }
+        }
+        setPhoneFieldError(null);
         var phone = getCheckoutPhone();
         if (!phone) {
-            alert('يرجى إدخال رقم الهاتف في حقل الفاتورة أولاً');
-            $('input[id*="phone"], #billing_phone').first().focus();
+            setPhoneFieldError('يرجى إدخال رقم الهاتف في حقل الفاتورة أولاً');
+            $phoneField.focus();
             return;
         }
         sendOTP(phone, 'checkout');
@@ -350,12 +485,26 @@
 
     // ========== Registration OTP ==========
     $(document).on('click', '#hoktech-send-reg-otp', function () {
-        var phone = $('#reg_phone').val();
+        var country = getActiveCountry();
+        var $phoneField = $('#reg_phone');
+        var phone = $phoneField.val() || '';
+        if (country === 'EG') {
+            var digits = phone.replace(/[^0-9]/g, '');
+            if (digits.length !== 11 || digits.indexOf('01') !== 0) {
+                var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
+                    ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)';
+                setPhoneFieldError(msg);
+                $phoneField.focus();
+                return;
+            }
+        }
         if (!phone) {
-            alert('يرجى إدخال رقم الهاتف أولاً');
-            $('#reg_phone').focus();
+            setPhoneFieldError('يرجى إدخال رقم الهاتف أولاً');
+            $phoneField.focus();
             return;
         }
+        setPhoneFieldError(null);
         sendOTP(phone, 'registration');
     });
 
@@ -364,6 +513,29 @@
         var code = $('#hoktech-reg-otp-code').val();
         if (!code) return;
         verifyOTP(phone, code, 'registration');
+    });
+
+    // Validate Egyptian phone on checkout submission
+    $(document).on('checkout_place_order', function () {
+        var country = getActiveCountry();
+        if (country === 'EG') {
+            var $phoneField = $('input#phone, input[id*="phone"], input#billing_phone, input[name*="phone"]').first();
+            var rawPhone = $phoneField.val() || '';
+            var digits = rawPhone.replace(/[^0-9]/g, '');
+            if (digits.length !== 11 || digits.indexOf('01') !== 0) {
+                var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
+                    ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)';
+                setPhoneFieldError(msg);
+                if ($phoneField.length) {
+                    $phoneField.focus();
+                    $('html, body').animate({ scrollTop: $phoneField.offset().top - 120 }, 300);
+                }
+                return false;
+            } else {
+                setPhoneFieldError(null);
+            }
+        }
     });
 
     // ========== Send OTP ==========
@@ -458,11 +630,13 @@
     // ========== Initialize ==========
     $(document).ready(function () {
         initCountrySelector();
+        initEgyptPhoneRestriction();
     });
 
     // Also try on WooCommerce Blocks ready
     $(document.body).on('updated_checkout', function () {
         initCountrySelector();
+        initEgyptPhoneRestriction();
     });
 
 })(jQuery);

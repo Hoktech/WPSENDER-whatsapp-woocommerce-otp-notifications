@@ -463,3 +463,55 @@
         font-size: 16px !important; /* Prevent iOS zoom */
     }
 }
+
+/* ========== Field Error & Inline Notice Styles ========== */
+.hoktech-phone-wrapper.hoktech-has-error {
+    border-color: #d92d20 !important;
+    box-shadow: 0 0 0 2px rgba(217, 45, 32, 0.15) !important;
+    border-radius: 4px;
+}
+
+.hoktech-phone-wrapper.hoktech-has-error .hoktech-country-btn {
+    border-color: #d92d20 !important;
+}
+
+input.hoktech-has-error,
+.hoktech-has-error input {
+    border-color: #d92d20 !important;
+    background-color: #fff8f8 !important;
+}
+
+input.hoktech-has-error:focus,
+.hoktech-has-error input:focus {
+    box-shadow: 0 0 0 2px rgba(217, 45, 32, 0.2) !important;
+}
+
+.hoktech-phone-error-msg {
+    color: #d92d20;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.4;
+    direction: rtl;
+    text-align: right;
+    animation: hoktechFadeIn 0.2s ease-in-out;
+}
+
+.hoktech-phone-error-msg::before {
+    content: "⚠️";
+    font-size: 14px;
+}
+
+@keyframes hoktechFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
