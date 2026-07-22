@@ -330,7 +330,8 @@
                         if (digits.length === 0) {
                             setPhoneFieldError(null);
                         } else if (digits.length < 11) {
-                            setPhoneFieldError('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)');
+                            setPhoneFieldError('رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+');
                         } else if (digits.length === 11) {
                             if (digits.indexOf('01') !== 0) {
                                 setPhoneFieldError('رقم الهاتف المصري يجب أن يبدأ بـ (01)');
@@ -460,7 +461,8 @@
             if (digits.length !== 11 || digits.indexOf('01') !== 0) {
                 var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
                     ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
-                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)';
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+                ';
                 setPhoneFieldError(msg);
                 $phoneField.focus();
                 return;
@@ -493,7 +495,8 @@
             if (digits.length !== 11 || digits.indexOf('01') !== 0) {
                 var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
                     ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
-                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)';
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+                ';
                 setPhoneFieldError(msg);
                 $phoneField.focus();
                 return;
@@ -525,7 +528,8 @@
             if (digits.length !== 11 || digits.indexOf('01') !== 0) {
                 var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
                     ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
-                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)';
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+                ';
                 setPhoneFieldError(msg);
                 if ($phoneField.length) {
                     $phoneField.focus();

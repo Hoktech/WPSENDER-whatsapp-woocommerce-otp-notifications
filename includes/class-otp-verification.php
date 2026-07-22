@@ -241,7 +241,8 @@ class HokTech_OTP_Verification {
 
         if ($country === 'EG' && !empty($phone)) {
             if (!$this->is_valid_egypt_phone($phone)) {
-                wc_add_notice(__('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification'), 'error');
+                wc_add_notice(__('رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+', 'sender-notification'), 'error');
             }
         }
     }
@@ -255,7 +256,8 @@ class HokTech_OTP_Verification {
 
         if ($country === 'EG' && !empty($phone)) {
             if (!$this->is_valid_egypt_phone($phone)) {
-                $errors->add('billing_phone_error', __('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification'));
+                $errors->add('billing_phone_error', __('رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+', 'sender-notification'));
             }
         }
     }
@@ -269,7 +271,8 @@ class HokTech_OTP_Verification {
 
         if ($country === 'EG' && !empty($phone)) {
             if (!$this->is_valid_egypt_phone($phone)) {
-                throw new \Exception(esc_html__('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification'));
+                throw new \Exception(esc_html__('رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+', 'sender-notification'));
             }
         }
     }
@@ -400,7 +403,8 @@ class HokTech_OTP_Verification {
 
         if ($country === 'EG' || (strlen($phone) === 11 && substr($phone, 0, 2) === '01')) {
             if (!$this->is_valid_egypt_phone($phone)) {
-                wp_send_json_error(['message' => __('رقم الهاتف المصري يجب أن يتكون من 11 رقم (مثال: 01xxxxxxxx)', 'sender-notification')]);
+                wp_send_json_error(['message' => __('رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
+', 'sender-notification')]);
             }
         }
 
