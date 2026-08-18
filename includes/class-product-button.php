@@ -118,7 +118,8 @@ class HokTech_Product_Button {
         $side_class = ($position === 'floating_bottom_left') ? 'hoktech-floating-left' : 'hoktech-floating-right';
         ?>
         <style id="hoktech-wa-floating-style">
-        .hoktech-wa-floating-btn { position: fixed !important; bottom: 25px; right: 25px; z-index: 9999999 !important; margin: 0 !important; line-height: 1 !important; display: flex !important; align-items: center !important; justify-content: center !important; width: 60px !important; height: 60px !important; min-width: 60px !important; min-height: 60px !important; max-width: 60px !important; max-height: 60px !important; padding: 0 !important; border-radius: 50% !important; background-color: #25D366 !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 18px rgba(37, 211, 102, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18) !important; cursor: grab !important; cursor: -webkit-grab !important; user-select: none !important; -webkit-user-select: none !important; touch-action: none !important; text-decoration: none !important; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease !important; }
+        .hoktech-wa-floating-btn { position: fixed !important; bottom: 25px; right: 25px; z-index: 9999999 !important; margin: 0 !important; line-height: 1 !important; display: flex !important; align-items: center !important; justify-content: center !important; width: 60px !important; height: 60px !important; min-width: 60px !important; min-height: 60px !important; max-width: 60px !important; max-height: 60px !important; padding: 0 !important; border-radius: 50% !important; background-color: #25D366 !important; color: #ffffff !important; border: none !important; box-shadow: 0 4px 18px rgba(37, 211, 102, 0.45), 0 2px 8px rgba(0, 0, 0, 0.18) !important; user-select: none !important; -webkit-user-select: none !important; touch-action: none !important; text-decoration: none !important; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease !important; }
+        .hoktech-wa-floating-btn.hoktech-draggable-btn { cursor: grab !important; cursor: -webkit-grab !important; }
         .hoktech-wa-floating-btn.hoktech-floating-left { right: auto !important; left: 25px !important; }
         .hoktech-wa-floating-btn.hoktech-floating-right { left: auto !important; right: 25px !important; }
         .hoktech-wa-floating-btn:hover { transform: scale(1.1) !important; box-shadow: 0 8px 24px rgba(37, 211, 102, 0.55), 0 4px 10px rgba(0, 0, 0, 0.22) !important; color: #ffffff !important; }
@@ -128,9 +129,9 @@ class HokTech_Product_Button {
         .hoktech-wa-floating-tooltip { position: absolute !important; right: calc(100% + 12px) !important; top: 50% !important; transform: translateY(-50%) !important; background: #1e293b !important; color: #ffffff !important; padding: 6px 14px !important; border-radius: 8px !important; font-size: 13px !important; font-weight: 600 !important; white-space: nowrap !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; transition: opacity 0.2s ease !important; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important; line-height: 1.4 !important; }
         .hoktech-wa-floating-btn.hoktech-floating-left .hoktech-wa-floating-tooltip { right: auto !important; left: calc(100% + 12px) !important; }
         .hoktech-wa-floating-btn:hover:not(.is-dragging) .hoktech-wa-floating-tooltip { opacity: 1 !important; visibility: visible !important; }
-        @media (max-width: 480px) {
-            .hoktech-wa-floating-btn { width: 54px !important; height: 54px !important; min-width: 54px !important; min-height: 54px !important; bottom: 16px !important; right: 16px !important; }
-            .hoktech-wa-floating-btn.hoktech-floating-left { left: 16px !important; right: auto !important; }
+        @media (max-width: 768px) {
+            .hoktech-wa-floating-btn { width: 55px !important; height: 55px !important; min-width: 55px !important; min-height: 55px !important; bottom: 80px !important; right: 18px !important; }
+            .hoktech-wa-floating-btn.hoktech-floating-left { left: 18px !important; right: auto !important; }
             .hoktech-wa-floating-btn svg { width: 30px !important; height: 30px !important; }
             .hoktech-wa-floating-tooltip { display: none !important; }
         }
@@ -198,6 +199,11 @@ class HokTech_Product_Button {
         $extra_class = $args['extra_class'] ?? '';
         $is_floating = ($layout === 'floating' || !empty($args['is_floating_icon']));
 
+        // Draggable class check (Only add draggable if enabled in settings and not fixed position)
+        $position = $settings['button_position'] ?? 'floating_draggable';
+        $is_draggable = (!isset($settings['draggable']) || !empty($settings['draggable'])) && ($position === 'floating_draggable' || $position === 'both_inline_and_floating');
+        $draggable_class = $is_draggable ? 'hoktech-draggable-btn' : 'hoktech-fixed-btn';
+
         // Button shape & options
         $button_shape = $args['button_shape'] ?? ($settings['btn_border_radius'] ?? ($is_floating ? 'circle' : 'rounded'));
         $button_text = !empty($args['button_text']) 
@@ -248,7 +254,7 @@ class HokTech_Product_Button {
             ob_start();
             ?>
             <a href="<?php echo $wa_url; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>"
-               class="hoktech-wa-floating-btn hoktech-draggable-btn <?php echo esc_attr($mobile_class); ?> <?php echo esc_attr($extra_class); ?>"
+               class="hoktech-wa-floating-btn <?php echo esc_attr($draggable_class); ?> <?php echo esc_attr($mobile_class); ?> <?php echo esc_attr($extra_class); ?>"
                id="hoktech-wa-floating-button"
                data-product-id="<?php echo esc_attr($product_id); ?>"
                data-product-name="<?php echo esc_attr($product_name); ?>"

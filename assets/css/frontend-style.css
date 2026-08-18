@@ -795,7 +795,7 @@ input.hoktech-has-error:focus,
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
     .hoktech-wa-product-btn-wrap.hoktech-layout-inline {
         display: block;
         width: 100%;
@@ -807,22 +807,20 @@ input.hoktech-has-error:focus,
         box-sizing: border-box;
     }
 
-    .hoktech-wa-floating-wrap {
-        bottom: 16px;
-        right: 16px;
-    }
-
-    .hoktech-wa-floating-wrap.hoktech-floating-left {
-        left: 16px;
-    }
-
     .hoktech-wa-floating-btn {
-        width: 54px !important;
-        height: 54px !important;
-        min-width: 54px !important;
-        min-height: 54px !important;
-        max-width: 54px !important;
-        max-height: 54px !important;
+        width: 55px !important;
+        height: 55px !important;
+        min-width: 55px !important;
+        min-height: 55px !important;
+        max-width: 55px !important;
+        max-height: 55px !important;
+        bottom: 80px !important; /* Floats above mobile bottom navigation bar */
+        right: 18px !important;
+    }
+
+    .hoktech-wa-floating-btn.hoktech-floating-left {
+        left: 18px !important;
+        right: auto !important;
     }
 
     .hoktech-wa-floating-btn .hoktech-wa-svg,
@@ -839,4 +837,11 @@ input.hoktech-has-error:focus,
         padding: 11px 18px;
         font-size: 14px;
     }
+}
+
+.has-bottom-nav .hoktech-wa-floating-btn,
+.wd-toolbar-active .hoktech-wa-floating-btn,
+body:has(.wd-toolbar) .hoktech-wa-floating-btn,
+body:has(.woodmart-toolbar) .hoktech-wa-floating-btn {
+    bottom: 80px !important;
 }

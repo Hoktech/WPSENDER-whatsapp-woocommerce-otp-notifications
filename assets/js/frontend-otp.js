@@ -721,7 +721,7 @@
 
     // ========== Draggable Floating WhatsApp Button ==========
     function initDraggableWhatsAppButton() {
-        var $btn = $('.hoktech-wa-floating-btn, .hoktech-draggable-btn');
+        var $btn = $('.hoktech-draggable-btn');
         if (!$btn.length) return;
 
         $btn.each(function () {
@@ -744,9 +744,10 @@
                             var winH = window.innerHeight || document.documentElement.clientHeight;
                             var btnW = el.offsetWidth || 60;
                             var btnH = el.offsetHeight || 60;
+                            var minBottom = winW <= 768 ? 75 : 10;
 
                             var left = Math.max(10, Math.min(pos.left, winW - btnW - 10));
-                            var top  = Math.max(10, Math.min(pos.top, winH - btnH - 10));
+                            var top  = Math.max(10, Math.min(pos.top, winH - btnH - minBottom));
 
                             el.style.setProperty('position', 'fixed', 'important');
                             el.style.setProperty('left', left + 'px', 'important');
@@ -789,13 +790,14 @@
                 var winH = window.innerHeight || document.documentElement.clientHeight;
                 var btnW = el.offsetWidth || 60;
                 var btnH = el.offsetHeight || 60;
+                var minBottom = winW <= 768 ? 70 : 10;
 
                 var newLeft = clientX - shiftX;
                 var newTop  = clientY - shiftY;
 
-                // Clamping inside viewport with 10px margin
+                // Clamping inside viewport
                 newLeft = Math.max(10, Math.min(newLeft, winW - btnW - 10));
-                newTop  = Math.max(10, Math.min(newTop, winH - btnH - 10));
+                newTop  = Math.max(10, Math.min(newTop, winH - btnH - minBottom));
 
                 el.style.setProperty('position', 'fixed', 'important');
                 el.style.setProperty('left', newLeft + 'px', 'important');
@@ -818,9 +820,10 @@
                         var winH = window.innerHeight || document.documentElement.clientHeight;
                         var btnW = el.offsetWidth || 60;
                         var btnH = el.offsetHeight || 60;
+                        var minBottom = winW <= 768 ? 70 : 10;
 
                         var saveLeft = Math.max(10, Math.min(rect.left, winW - btnW - 10));
-                        var saveTop  = Math.max(10, Math.min(rect.top, winH - btnH - 10));
+                        var saveTop  = Math.max(10, Math.min(rect.top, winH - btnH - minBottom));
 
                         localStorage.setItem('hoktech_wa_float_pos', JSON.stringify({
                             left: Math.round(saveLeft),
@@ -851,26 +854,50 @@
                 document.addEventListener('mouseup', onMouseUp);
             });
 
-            // Touch Drag (Mobile / Tablets)
+            // Touch Drag (Mobile / Tablets) with Scroll-Safe Threshold
+            var touchStartX = 0;
+            var touchStartY = 0;
+            var isTouchDragging = false;
+
             el.addEventListener('touchstart', function (e) {
                 if (e.touches && e.touches.length === 1) {
-                    startDrag(e.touches[0].clientX, e.touches[0].clientY);
+                    touchStartX = e.touches[0].clientX;
+                    touchStartY = e.touches[0].clientY;
+                    isTouchDragging = false;
                 }
             }, { passive: true });
 
             el.addEventListener('touchmove', function (e) {
-                if (isDragging && e.touches && e.touches.length === 1) {
-                    e.preventDefault();
-                    moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+                if (!e.touches || e.touches.length !== 1) return;
+                var curX = e.touches[0].clientX;
+                var curY = e.touches[0].clientY;
+                var diffX = Math.abs(curX - touchStartX);
+                var diffY = Math.abs(curY - touchStartY);
+
+                // Only begin dragging if the finger actually moved more than 8px
+                if (!isTouchDragging && (diffX > 8 || diffY > 8)) {
+                    isTouchDragging = true;
+                    startDrag(curX, curY);
+                }
+
+                if (isTouchDragging && isDragging) {
+                    e.preventDefault(); // Stop page scroll only once intentionally dragging the button
+                    moveDrag(curX, curY);
                 }
             }, { passive: false });
 
             el.addEventListener('touchend', function () {
-                endDrag();
+                if (isTouchDragging) {
+                    endDrag();
+                }
+                isTouchDragging = false;
             });
 
             el.addEventListener('touchcancel', function () {
-                endDrag();
+                if (isTouchDragging) {
+                    endDrag();
+                }
+                isTouchDragging = false;
             });
 
             // Window resize clamping
@@ -881,10 +908,11 @@
                 var winH = window.innerHeight || document.documentElement.clientHeight;
                 var btnW = el.offsetWidth || 60;
                 var btnH = el.offsetHeight || 60;
+                var minBottom = winW <= 768 ? 70 : 10;
 
-                if (rect.right > winW || rect.bottom > winH || rect.left < 0 || rect.top < 0) {
+                if (rect.right > winW || rect.bottom > (winH - minBottom) || rect.left < 0 || rect.top < 0) {
                     var left = Math.max(10, Math.min(rect.left, winW - btnW - 10));
-                    var top  = Math.max(10, Math.min(rect.top, winH - btnH - 10));
+                    var top  = Math.max(10, Math.min(rect.top, winH - btnH - minBottom));
 
                     el.style.setProperty('position', 'fixed', 'important');
                     el.style.setProperty('left', left + 'px', 'important');
