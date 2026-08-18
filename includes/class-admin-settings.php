@@ -26,6 +26,10 @@ class HokTech_Admin_Settings {
         add_action('wp_ajax_hoktech_save_admin_notifications', [$this, 'ajax_save_admin_notifications']);
         add_action('wp_ajax_hoktech_save_vendor_notifications', [$this, 'ajax_save_vendor_notifications']);
         add_action('wp_ajax_hoktech_save_vendor_session', [$this, 'ajax_save_vendor_session']);
+        add_action('wp_ajax_hoktech_save_product_button', [$this, 'ajax_save_product_button']);
+
+        // Handle standard POST saving as fallback
+        add_action('admin_init', [$this, 'handle_post_save']);
 
         // Suppress all third-party admin notices on our plugin page
         add_action('admin_init', [$this, 'suppress_admin_notices']);
@@ -288,15 +292,103 @@ class HokTech_Admin_Settings {
     }
 
     /**
+     * Helper to parse product button settings array from $_POST
+     */
+    private function parse_product_button_post_data() {
+        $check_enabled = function($val) {
+            if (empty($val)) return false;
+            return in_array(strtolower((string)$val), ['1', 'true', 'on', 'yes'], true);
+        };
+
+        return [
+            'enabled'              => $check_enabled($_POST['product_btn_enabled'] ?? ''),
+            'phone'                => sanitize_text_field(wp_unslash($_POST['product_btn_phone'] ?? '')),
+            'default_country_code' => sanitize_text_field(wp_unslash($_POST['default_country_code'] ?? 'EG')),
+            'button_text'          => sanitize_text_field(wp_unslash($_POST['product_btn_text'] ?? __('استفسار عبر واتساب', 'sender-notification'))),
+            'button_position'      => sanitize_key(wp_unslash($_POST['product_btn_position'] ?? 'floating_draggable')),
+            'button_style'         => sanitize_key(wp_unslash($_POST['product_btn_style'] ?? 'default')),
+            'btn_bg_color'         => sanitize_hex_color(wp_unslash($_POST['product_btn_bg_color'] ?? '')) ?: '#25D366',
+            'btn_text_color'       => sanitize_hex_color(wp_unslash($_POST['product_btn_text_color'] ?? '')) ?: '#ffffff',
+            'btn_border_radius'    => sanitize_key(wp_unslash($_POST['product_btn_border_radius'] ?? 'circle')),
+            'show_icon'            => $check_enabled($_POST['product_btn_show_icon'] ?? '1'),
+            'open_in_new_tab'      => $check_enabled($_POST['product_btn_open_tab'] ?? '1'),
+            'hide_add_to_cart'     => $check_enabled($_POST['product_btn_hide_cart'] ?? ''),
+            'show_on_mobile_only'  => $check_enabled($_POST['product_btn_mobile_only'] ?? ''),
+            'draggable'            => $check_enabled($_POST['product_btn_draggable'] ?? '1'),
+            'use_vendor_phone'     => $check_enabled($_POST['product_btn_use_vendor'] ?? ''),
+            'message_template'     => hoktech_sanitize_textarea(wp_unslash($_POST['product_btn_message'] ?? ''), true),
+        ];
+    }
+
+    /**
+     * Handle fallback standard POST save for Product Button
+     */
+    public function handle_post_save() {
+        if (!isset($_POST['hoktech_save_product_button_action'])) {
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        if (!isset($_POST['hoktech_post_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['hoktech_post_nonce'])), 'hoktech_wa_admin_post_action')) {
+            return;
+        }
+
+        $settings = $this->parse_product_button_post_data();
+        if (function_exists('hoktech_update_product_button_settings')) {
+            hoktech_update_product_button_settings($settings);
+        } else {
+            update_option('hoktech_wa_product_button', $settings);
+        }
+        wp_safe_redirect(add_query_arg(['page' => 'sender-notification', 'tab' => 'product-button', 'saved' => '1'], admin_url('admin.php')));
+        exit;
+    }
+
+    /**
+     * AJAX: Save Product WhatsApp Button settings
+     */
+    public function ajax_save_product_button() {
+        check_ajax_referer('hoktech_wa_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => __('صلاحيات غير كافية', 'sender-notification')]);
+        }
+
+        $settings = $this->parse_product_button_post_data();
+        if (function_exists('hoktech_update_product_button_settings')) {
+            hoktech_update_product_button_settings($settings);
+        } else {
+            update_option('hoktech_wa_product_button', $settings);
+        }
+        wp_send_json_success(['message' => __('تم حفظ إعدادات زر الواتساب للمنتجات بنجاح', 'sender-notification'), 'settings' => $settings]);
+    }
+
+    /**
      * Render the admin page
      */
     public function render_page() {
+        $saved_notice = false;
+        if (!empty($_POST['hoktech_save_product_button_action']) && current_user_can('manage_options')) {
+            if (isset($_POST['hoktech_post_nonce']) && wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['hoktech_post_nonce'])), 'hoktech_wa_admin_post_action')) {
+                $settings = $this->parse_product_button_post_data();
+                if (function_exists('hoktech_update_product_button_settings')) {
+                    hoktech_update_product_button_settings($settings);
+                } else {
+                    update_option('hoktech_wa_product_button', $settings);
+                }
+                $saved_notice = true;
+            }
+        }
+
         $connection   = get_option('hoktech_wa_connection', []);
         $is_connected = $this->api->is_connected();
         $notifications = get_option('hoktech_wa_notification_settings', []);
         $otp_settings = get_option('hoktech_wa_otp_settings', []);
         $admin_notifications = get_option('hoktech_wa_admin_notifications', []);
         $vendor_notifications = get_option('hoktech_wa_vendor_notifications', []);
+        $product_button = function_exists('hoktech_get_product_button_settings') ? hoktech_get_product_button_settings() : get_option('hoktech_wa_product_button', []);
         ?>
         <div class="wrap hoktech-wrap" dir="rtl">
             <div class="hoktech-header">
@@ -335,6 +427,10 @@ class HokTech_Admin_Settings {
                 <button class="hoktech-tab" data-tab="vendors">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: middle;"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                     <?php esc_html_e('إشعارات الفيندور', 'sender-notification'); ?>
+                </button>
+                <button class="hoktech-tab" data-tab="product-button">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: middle;"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                    <?php esc_html_e('زر الواتساب للمنتجات', 'sender-notification'); ?>
                 </button>
             </div>
 
@@ -901,7 +997,347 @@ class HokTech_Admin_Settings {
                     </div>
                 </div>
             </div>
+
+            <!-- Product WhatsApp Button Tab -->
+            <div class="hoktech-tab-content" id="tab-product-button">
+                <div class="hoktech-card">
+                    <div class="hoktech-card-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#25d366" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 10px; vertical-align: middle;"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 1 1-7.6-7.6 8.38 8.38 0 0 1 3.8.9L21 3.5z"/></svg>
+                        <h2><?php esc_html_e('زر الواتساب في صفحات المنتجات (WhatsApp Product Button)', 'sender-notification'); ?></h2>
+                    </div>
+                    <div class="hoktech-card-body">
+                        <p class="hoktech-description">
+                            <?php esc_html_e('أضف زر واتساب تفاعلي في صفحات منتجات ووكومرس لنقل العميل مباشرة إلى محادثة واتساب مع رسالة تحتوي على كامل تفاصيل وسعر ورابط المنتج للاستفسار أو الطلب السريع.', 'sender-notification'); ?>
+                        </p>
+
+                        <?php if (!empty($saved_notice) || (isset($_GET['saved']) && sanitize_key(wp_unslash($_GET['saved'])) === '1')): ?>
+                            <div class="hoktech-result success" style="display:block; margin-bottom: 18px;">
+                                ✅ <?php esc_html_e('تم حفظ إعدادات زر الواتساب للمنتجات بنجاح', 'sender-notification'); ?>
+                            </div>
+                        <?php endif; ?>
+
+                        <form id="hoktech-product-button-form" method="post" action="">
+                            <input type="hidden" name="hoktech_save_product_button_action" value="1">
+                            <?php wp_nonce_field('hoktech_wa_admin_post_action', 'hoktech_post_nonce'); ?>
+
+                            <!-- Main Enable Toggle -->
+                            <div class="hoktech-otp-option" style="margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #e5e7eb;">
+                                <label class="hoktech-toggle">
+                                    <input type="checkbox" id="hoktech-product-btn-enabled" name="product_btn_enabled" value="1" <?php checked(!empty($product_button['enabled'])); ?>>
+                                    <span class="hoktech-toggle-slider"></span>
+                                </label>
+                                <div class="hoktech-otp-option-info">
+                                    <strong><?php esc_html_e('تفعيل زر الواتساب في صفحات المنتجات', 'sender-notification'); ?></strong>
+                                    <p><?php esc_html_e('عند التفعيل، سيظهر زر الواتساب في صفحات المنتجات الفردية حسب الموضع والتصميم المختار أدناه', 'sender-notification'); ?></p>
+                                </div>
+                            </div>
+
+                            <!-- Phone Number & Default Country -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-phone">
+                                        <?php esc_html_e('رقم الواتساب المخصص للاستفسارات', 'sender-notification'); ?>
+                                        <span style="color:#ef4444;">*</span>
+                                    </label>
+                                    <input type="tel" id="hoktech-product-btn-phone" name="product_btn_phone" class="hoktech-input" value="<?php echo esc_attr($product_button['phone'] ?? ''); ?>" placeholder="<?php esc_attr_e('مثال: 01012345678 أو 201012345678', 'sender-notification'); ?>">
+                                    <p class="description"><?php esc_html_e('أدخل رقم الهاتف الذي ستصل إليه استفسارات العملاء على واتساب', 'sender-notification'); ?></p>
+                                </div>
+
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-country">
+                                        <?php esc_html_e('كود الدولة الافتراضي', 'sender-notification'); ?>
+                                    </label>
+                                    <select id="hoktech-product-btn-country" name="default_country_code" class="hoktech-select">
+                                        <?php
+                                        if (function_exists('hoktech_get_country_codes')) {
+                                            $countries = hoktech_get_country_codes();
+                                            $default_code = $product_button['default_country_code'] ?? 'EG';
+                                            foreach ($countries as $country) {
+                                                printf(
+                                                    '<option value="%s" %s>%s %s (%s)</option>',
+                                                    esc_attr($country['code']),
+                                                    selected($default_code, $country['code'], false),
+                                                    esc_html($country['flag']),
+                                                    esc_html($country['name']),
+                                                    esc_html($country['dial_code'])
+                                                );
+                                            }
+                                        }
+                                        ?>
+                                    </select>
+                                    <p class="description"><?php esc_html_e('يُضاف كود الدولة تلقائياً إذا أدخلت الرقم بدون مفتاح دولي', 'sender-notification'); ?></p>
+                                </div>
+                            </div>
+
+                            <!-- Button Text & Position -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-text">
+                                        <?php esc_html_e('نص الزر / التلميح (Tooltip)', 'sender-notification'); ?>
+                                    </label>
+                                    <input type="text" id="hoktech-product-btn-text" name="product_btn_text" class="hoktech-input" value="<?php echo esc_attr($product_button['button_text'] ?? __('استفسار عبر واتساب', 'sender-notification')); ?>" placeholder="<?php esc_attr_e('استفسار عبر واتساب', 'sender-notification'); ?>">
+                                </div>
+
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-position">
+                                        <?php esc_html_e('موضع الزر في صفحة المنتج', 'sender-notification'); ?>
+                                    </label>
+                                    <?php $pos = $product_button['button_position'] ?? 'floating_draggable'; ?>
+                                    <select id="hoktech-product-btn-position" name="product_btn_position" class="hoktech-select">
+                                        <option value="floating_draggable" <?php selected($pos, 'floating_draggable'); ?>><?php esc_html_e('🟢 أيقونة دائرية عائمة قابلة للسحب والتحريك في أي مكان (Draggable Floating)', 'sender-notification'); ?></option>
+                                        <option value="both_inline_and_floating" <?php selected($pos, 'both_inline_and_floating'); ?>><?php esc_html_e('كلاهما: داخل الصفحة + أيقونة دائرية عائمة قابلة للتحريك', 'sender-notification'); ?></option>
+                                        <option value="after_add_to_cart_btn" <?php selected($pos, 'after_add_to_cart_btn'); ?>><?php esc_html_e('بجانب / بعد زر أضف للسلة (داخل الصفحة)', 'sender-notification'); ?></option>
+                                        <option value="after_add_to_cart_form" <?php selected($pos, 'after_add_to_cart_form'); ?>><?php esc_html_e('أسفل صندوق أضف للسلة', 'sender-notification'); ?></option>
+                                        <option value="before_add_to_cart_form" <?php selected($pos, 'before_add_to_cart_form'); ?>><?php esc_html_e('أعلى صندوق أضف للسلة', 'sender-notification'); ?></option>
+                                        <option value="after_price" <?php selected($pos, 'after_price'); ?>><?php esc_html_e('أسفل السعر مباشرة', 'sender-notification'); ?></option>
+                                        <option value="after_summary" <?php selected($pos, 'after_summary'); ?>><?php esc_html_e('أسفل تفاصيل وملخص المنتج', 'sender-notification'); ?></option>
+                                        <option value="floating_bottom_right" <?php selected($pos, 'floating_bottom_right'); ?>><?php esc_html_e('زر عائم أسفل يمين الشاشة (Floating Right)', 'sender-notification'); ?></option>
+                                        <option value="floating_bottom_left" <?php selected($pos, 'floating_bottom_left'); ?>><?php esc_html_e('زر عائم أسفل يسار الشاشة (Floating Left)', 'sender-notification'); ?></option>
+                                        <option value="shortcode_only" <?php selected($pos, 'shortcode_only'); ?>><?php esc_html_e('بواسطة الشورت كود فقط [hoktech_whatsapp_button]', 'sender-notification'); ?></option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Button Style & Shape -->
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-style">
+                                        <?php esc_html_e('نمط وألوان الزر', 'sender-notification'); ?>
+                                    </label>
+                                    <?php $style = $product_button['button_style'] ?? 'default'; ?>
+                                    <select id="hoktech-product-btn-style" name="product_btn_style" class="hoktech-select">
+                                        <option value="default" <?php selected($style, 'default'); ?>><?php esc_html_e('أخضر واتساب الرسمي (موصى به)', 'sender-notification'); ?></option>
+                                        <option value="outline" <?php selected($style, 'outline'); ?>><?php esc_html_e('نمط مفرغ أنيق (Outline)', 'sender-notification'); ?></option>
+                                        <option value="custom" <?php selected($style, 'custom'); ?>><?php esc_html_e('تخصيص يدوي للألوان', 'sender-notification'); ?></option>
+                                    </select>
+                                </div>
+
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-shape">
+                                        <?php esc_html_e('شكل حواف الزر / الأيقونة', 'sender-notification'); ?>
+                                    </label>
+                                    <?php $shape = $product_button['btn_border_radius'] ?? 'circle'; ?>
+                                    <select id="hoktech-product-btn-shape" name="product_btn_border_radius" class="hoktech-select">
+                                        <option value="circle" <?php selected($shape, 'circle'); ?>><?php esc_html_e('دائري (أيقونة دائرية 100% مثل الصورة)', 'sender-notification'); ?></option>
+                                        <option value="pill" <?php selected($shape, 'pill'); ?>><?php esc_html_e('كبسولة بيضاوية (Pill / Full Rounded)', 'sender-notification'); ?></option>
+                                        <option value="rounded" <?php selected($shape, 'rounded'); ?>><?php esc_html_e('حواف مستديرة عادية (Rounded 8px)', 'sender-notification'); ?></option>
+                                        <option value="square" <?php selected($shape, 'square'); ?>><?php esc_html_e('حواف حادة مربعة (Square 0px)', 'sender-notification'); ?></option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- Custom Colors Row (Visible when Custom Style selected) -->
+                            <div id="hoktech-custom-colors-row" style="display: <?php echo ($style === 'custom') ? 'grid' : 'none'; ?>; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 20px; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-bg-color"><?php esc_html_e('لون خلفية الزر', 'sender-notification'); ?></label>
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <input type="color" id="hoktech-product-btn-bg-color" name="product_btn_bg_color" value="<?php echo esc_attr($product_button['btn_bg_color'] ?? '#25D366'); ?>" style="height: 38px; width: 60px; padding: 2px; cursor: pointer; border-radius: 6px; border: 1px solid #ccc;">
+                                        <input type="text" id="hoktech-product-btn-bg-hex" class="hoktech-input" value="<?php echo esc_attr($product_button['btn_bg_color'] ?? '#25D366'); ?>" style="max-width: 140px;" readonly>
+                                    </div>
+                                </div>
+
+                                <div class="hoktech-form-group" style="margin-bottom: 0;">
+                                    <label for="hoktech-product-btn-text-color"><?php esc_html_e('لون النص والأيقونة', 'sender-notification'); ?></label>
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <input type="color" id="hoktech-product-btn-text-color" name="product_btn_text_color" value="<?php echo esc_attr($product_button['btn_text_color'] ?? '#ffffff'); ?>" style="height: 38px; width: 60px; padding: 2px; cursor: pointer; border-radius: 6px; border: 1px solid #ccc;">
+                                        <input type="text" id="hoktech-product-btn-text-hex" class="hoktech-input" value="<?php echo esc_attr($product_button['btn_text_color'] ?? '#ffffff'); ?>" style="max-width: 140px;" readonly>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Additional Feature Checkboxes Grid -->
+                            <div class="hoktech-form-group" style="border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                                <label style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: block; color: #1e1e1e;">
+                                    <?php esc_html_e('خيارات متقدمة إضافية', 'sender-notification'); ?>
+                                </label>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+                                    <div class="hoktech-otp-option" style="background:#fafafa; border:1px solid #eee; padding:12px 16px; border-radius:6px; margin:0;">
+                                        <label class="hoktech-toggle">
+                                            <input type="checkbox" name="product_btn_draggable" value="1" <?php checked(!isset($product_button['draggable']) || !empty($product_button['draggable'])); ?>>
+                                            <span class="hoktech-toggle-slider"></span>
+                                        </label>
+                                        <div class="hoktech-otp-option-info">
+                                            <strong><?php esc_html_e('تحريك وسحب الأيقونة العائمة (Draggable)', 'sender-notification'); ?></strong>
+                                            <p><?php esc_html_e('إتاحة تحريك وسحب الأيقونة في أي مكان على الشاشة باللمس والماوس بحرية', 'sender-notification'); ?></p>
+                                        </div>
+                                    </div>
+
+                                    <div class="hoktech-otp-option" style="background:#fafafa; border:1px solid #eee; padding:12px 16px; border-radius:6px; margin:0;">
+                                        <label class="hoktech-toggle">
+                                            <input type="checkbox" name="product_btn_show_icon" value="1" <?php checked(!isset($product_button['show_icon']) || !empty($product_button['show_icon'])); ?>>
+                                            <span class="hoktech-toggle-slider"></span>
+                                        </label>
+                                        <div class="hoktech-otp-option-info">
+                                            <strong><?php esc_html_e('إظهار أيقونة الواتساب', 'sender-notification'); ?></strong>
+                                            <p><?php esc_html_e('عرض أيقونة واتساب الرسمية بجانب نص الزر', 'sender-notification'); ?></p>
+                                        </div>
+                                    </div>
+
+                                    <div class="hoktech-otp-option" style="background:#fafafa; border:1px solid #eee; padding:12px 16px; border-radius:6px; margin:0;">
+                                        <label class="hoktech-toggle">
+                                            <input type="checkbox" name="product_btn_open_tab" value="1" <?php checked(!isset($product_button['open_in_new_tab']) || !empty($product_button['open_in_new_tab'])); ?>>
+                                            <span class="hoktech-toggle-slider"></span>
+                                        </label>
+                                        <div class="hoktech-otp-option-info">
+                                            <strong><?php esc_html_e('فتح في تبويب جديد', 'sender-notification'); ?></strong>
+                                            <p><?php esc_html_e('فتح تطبيق أو موقع واتساب في نافذة جديدة دون مغادرة صفحة المتجر', 'sender-notification'); ?></p>
+                                        </div>
+                                    </div>
+
+                                    <div class="hoktech-otp-option" style="background:#fafafa; border:1px solid #eee; padding:12px 16px; border-radius:6px; margin:0;">
+                                        <label class="hoktech-toggle">
+                                            <input type="checkbox" name="product_btn_mobile_only" value="1" <?php checked(!empty($product_button['show_on_mobile_only'])); ?>>
+                                            <span class="hoktech-toggle-slider"></span>
+                                        </label>
+                                        <div class="hoktech-otp-option-info">
+                                            <strong><?php esc_html_e('إظهار على الجوال فقط', 'sender-notification'); ?></strong>
+                                            <p><?php esc_html_e('إخفاء الزر على شاشات الكمبيوتر وإظهاره للهواتف المحمولة فقط', 'sender-notification'); ?></p>
+                                        </div>
+                                    </div>
+
+                                    <div class="hoktech-otp-option" style="background:#fafafa; border:1px solid #eee; padding:12px 16px; border-radius:6px; margin:0;">
+                                        <label class="hoktech-toggle">
+                                            <input type="checkbox" name="product_btn_hide_cart" value="1" <?php checked(!empty($product_button['hide_add_to_cart'])); ?>>
+                                            <span class="hoktech-toggle-slider"></span>
+                                        </label>
+                                        <div class="hoktech-otp-option-info">
+                                            <strong><?php esc_html_e('إخفاء زر أضف للسلة', 'sender-notification'); ?></strong>
+                                            <p><?php esc_html_e('إخفاء زر السلة الافتراضي والاعتماد كلياً على الطلب عبر الواتساب', 'sender-notification'); ?></p>
+                                        </div>
+                                    </div>
+
+                                    <div class="hoktech-otp-option" style="background:#fafafa; border:1px solid #eee; padding:12px 16px; border-radius:6px; margin:0;">
+                                        <label class="hoktech-toggle">
+                                            <input type="checkbox" name="product_btn_use_vendor" value="1" <?php checked(!empty($product_button['use_vendor_phone'])); ?>>
+                                            <span class="hoktech-toggle-slider"></span>
+                                        </label>
+                                        <div class="hoktech-otp-option-info">
+                                            <strong><?php esc_html_e('توجيه لفيندور المنتج (Multi-Vendor)', 'sender-notification'); ?></strong>
+                                            <p><?php esc_html_e('تحويل محادثة الواتساب لرقم الفيندور صاحب المنتج تلقائياً (Dokan / WCFM / WC Vendors)', 'sender-notification'); ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Message Template -->
+                            <div class="hoktech-form-group" style="border-top: 1px solid #e5e7eb; padding-top: 20px;">
+                                <label for="hoktech-product-btn-message" style="font-size: 15px; font-weight: 600; color: #1e1e1e;">
+                                    <?php esc_html_e('قالب رسالة الاستفسار / الطلب في واتساب', 'sender-notification'); ?>
+                                </label>
+                                <p class="description" style="margin-bottom: 8px;">
+                                    <?php esc_html_e('هذه هي الرسالة التلقائية التي ستظهر مجهزة في تطبيق واتساب عندما ينقر العميل على الزر. يمكنك تخصيصها والنقر على أي متغير بالأسفل لإدراجه:', 'sender-notification'); ?>
+                                </p>
+                                <textarea id="hoktech-product-btn-message" name="product_btn_message" class="hoktech-textarea" rows="6"><?php 
+                                    $btn_msg_val = $product_button['message_template'] ?? "مرحباً {site_name}، أود الاستفسار عن هذا المنتج:\n📌 *{product_name}*\n💰 السعر: {product_price}\n🏷️ كود المنتج (SKU): {product_sku}\n🔗 الرابط: {product_url}";
+                                    echo "\n" . esc_textarea($btn_msg_val) . "\n"; 
+                                ?></textarea>
+
+                                <div class="hoktech-placeholders-info" style="margin-top: 12px; background:#f0fdf4; border-color:#86efac;">
+                                    <strong style="color:#166534;"><?php esc_html_e('المتغيرات المتاحة (انقر لإدراج المتغير في مكان المؤشر):', 'sender-notification'); ?></strong>
+                                    <div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px;">
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_name}"><code>{product_name}</code> <?php esc_html_e('اسم المنتج', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_price}"><code>{product_price}</code> <?php esc_html_e('السعر', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_sku}"><code>{product_sku}</code> <?php esc_html_e('كود SKU', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_url}"><code>{product_url}</code> <?php esc_html_e('رابط المنتج', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_id}"><code>{product_id}</code> <?php esc_html_e('معرف المنتج', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_category}"><code>{product_category}</code> <?php esc_html_e('تصنيف المنتج', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_short_desc}"><code>{product_short_desc}</code> <?php esc_html_e('الوصف المختصر', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{site_name}"><code>{site_name}</code> <?php esc_html_e('اسم الموقع', 'sender-notification'); ?></button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Shortcode Info Card -->
+                            <div class="hoktech-placeholders-info" style="margin-top: 20px; background:#eff6ff; border-color:#93c5fd;">
+                                <strong style="color:#1e40af;">💡 <?php esc_html_e('استخدام الشورت كود (Shortcode):', 'sender-notification'); ?></strong>
+                                <p style="margin: 6px 0 0; color:#1e3a8a; font-size:13px;">
+                                    <?php esc_html_e('يمكنك إضافة زر الواتساب في أي مكان في قالبك أو عبر Elementor باستخدام الكود التالي:', 'sender-notification'); ?>
+                                    <code style="display:inline-block; margin-top:4px; font-weight:bold; font-size:13px;">[hoktech_whatsapp_button]</code>
+                                    <br>
+                                    <?php esc_html_e('مع معاملات مخصصة اختيارية مثل:', 'sender-notification'); ?>
+                                    <code style="display:inline-block; margin-top:4px;">[hoktech_whatsapp_button text="اطلب عبر واتساب" phone="201012345678"]</code>
+                                </p>
+                            </div>
+
+                            <div class="hoktech-form-actions" style="margin-top: 24px;">
+                                <button type="submit" class="button button-primary button-hero" id="hoktech-product-btn-save">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 8px; vertical-align: middle;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                    <?php esc_html_e('حفظ إعدادات زر المنتجات', 'sender-notification'); ?>
+                                </button>
+                            </div>
+                        </form>
+                        <div id="hoktech-product-btn-result" class="hoktech-result" style="display:none; margin-top: 14px;"></div>
+                    </div>
+                </div>
+            </div>
         </div>
+
+        <script type="text/javascript">
+        (function($) {
+            $(function() {
+                // Tab switching memory
+                var currentTab = localStorage.getItem('hoktech_admin_active_tab') || (window.location.hash ? window.location.hash.replace('#tab=', '').replace('#', '') : '') <?php echo (!empty($saved_notice) || (isset($_GET['tab']) && $_GET['tab'] === 'product-button')) ? "|| 'product-button'" : ""; ?>;
+                if (currentTab) {
+                    var $tBtn = $('.hoktech-tab[data-tab="' + currentTab + '"]');
+                    var $tContent = $('#tab-' + currentTab);
+                    if ($tBtn.length && $tContent.length) {
+                        $('.hoktech-tab').removeClass('active');
+                        $tBtn.addClass('active');
+                        $('.hoktech-tab-content').removeClass('active');
+                        $tContent.addClass('active');
+                    }
+                }
+
+                // Inline submit handler for Product WhatsApp Button
+                $('#hoktech-product-button-form').off('submit.hoktech_inline').on('submit.hoktech_inline', function(e) {
+                    e.preventDefault();
+                    var $form = $(this);
+                    var $btn = $('#hoktech-product-btn-save');
+                    var $result = $('#hoktech-product-btn-result');
+                    var origHtml = $btn.html();
+
+                    $btn.prop('disabled', true);
+                    $result.hide();
+
+                    var isEnabled = $('#hoktech-product-btn-enabled').is(':checked') ? '1' : '';
+
+                    var data = {
+                        action: 'hoktech_save_product_button',
+                        nonce: '<?php echo esc_js(wp_create_nonce('hoktech_wa_nonce')); ?>',
+                        product_btn_enabled: isEnabled,
+                        product_btn_phone: $('#hoktech-product-btn-phone').val(),
+                        default_country_code: $('#hoktech-product-btn-country').val(),
+                        product_btn_text: $('#hoktech-product-btn-text').val(),
+                        product_btn_position: $('#hoktech-product-btn-position').val(),
+                        product_btn_style: $('#hoktech-product-btn-style').val(),
+                        product_btn_bg_color: $('#hoktech-product-btn-bg-color').val(),
+                        product_btn_text_color: $('#hoktech-product-btn-text-color').val(),
+                        product_btn_border_radius: $('#hoktech-product-btn-shape').val(),
+                        product_btn_draggable: $form.find('input[name="product_btn_draggable"]').is(':checked') ? '1' : '',
+                        product_btn_show_icon: $form.find('input[name="product_btn_show_icon"]').is(':checked') ? '1' : '',
+                        product_btn_open_tab: $form.find('input[name="product_btn_open_tab"]').is(':checked') ? '1' : '',
+                        product_btn_hide_cart: $form.find('input[name="product_btn_hide_cart"]').is(':checked') ? '1' : '',
+                        product_btn_mobile_only: $form.find('input[name="product_btn_mobile_only"]').is(':checked') ? '1' : '',
+                        product_btn_use_vendor: $form.find('input[name="product_btn_use_vendor"]').is(':checked') ? '1' : '',
+                        product_btn_message: $('#hoktech-product-btn-message').val()
+                    };
+
+                    $.post('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', data, function(res) {
+                        $btn.prop('disabled', false).html(origHtml);
+                        if (res && res.success) {
+                            $result.html('✅ ' + res.data.message).removeClass('error').addClass('success').fadeIn();
+                            setTimeout(function() { $result.fadeOut(); }, 4000);
+                        } else {
+                            $result.html('❌ ' + ((res && res.data && res.data.message) ? res.data.message : 'خطأ')).removeClass('success').addClass('error').fadeIn();
+                        }
+                    }).fail(function() {
+                        $btn.prop('disabled', false).html(origHtml);
+                        $result.html('❌ حدث خطأ في الاتصال بالخادم').removeClass('success').addClass('error').fadeIn();
+                    });
+                });
+            });
+        })(jQuery);
+        </script>
         <?php
     }
 }

@@ -3,7 +3,7 @@
  * Plugin Name: sender - Order Notifications & Messaging
  * Plugin URI: https://www.wpsenderx.com
  * Description: إضافة ووردبريس لربط متجر WooCommerce بمنصة sender للإشعارات - تنبيهات الطلبات، التحقق عبر OTP، ورسائل مخصصة
- * Version: 1.1.0
+ * Version: 1.1.1
  * Author: sender
  * Text Domain: sender-notification
  * Domain Path: /languages
@@ -24,7 +24,7 @@ if (defined('HOKTECH_WA_VERSION')) {
 }
 
 // Plugin constants
-define('HOKTECH_WA_VERSION', '1.1.0');
+define('HOKTECH_WA_VERSION', '1.1.2');
 define('HOKTECH_WA_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('HOKTECH_WA_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('HOKTECH_WA_PLUGIN_BASENAME', plugin_basename(__FILE__));
@@ -69,6 +69,108 @@ if (!function_exists('hoktech_sanitize_textarea')) {
 }
 
 /**
+ * Get Product WhatsApp Button settings safely with multi-layer cache & database fallbacks
+ */
+if (!function_exists('hoktech_get_product_button_settings')) {
+    function hoktech_get_product_button_settings() {
+        $defaults = [
+            'enabled'              => false,
+            'phone'                => '',
+            'default_country_code' => 'EG',
+            'button_text'          => __('استفسار عبر واتساب', 'sender-notification'),
+            'button_position'      => 'floating_draggable',
+            'button_style'         => 'default',
+            'btn_bg_color'         => '#25D366',
+            'btn_text_color'       => '#ffffff',
+            'btn_border_radius'    => 'circle',
+            'show_icon'            => true,
+            'open_in_new_tab'      => true,
+            'hide_add_to_cart'     => false,
+            'show_on_mobile_only'  => false,
+            'draggable'            => true,
+            'use_vendor_phone'     => false,
+            'message_template'     => "مرحباً {site_name}، أود الاستفسار عن هذا المنتج:\n📌 *{product_name}*\n💰 السعر: {product_price}\n🏷️ كود المنتج (SKU): {product_sku}\n🔗 الرابط: {product_url}",
+        ];
+
+        $val = get_option('hoktech_wa_product_button', null);
+
+        if (is_string($val) && (strpos($val, '{') === 0 || strpos($val, '[') === 0)) {
+            $decoded = json_decode($val, true);
+            if (is_array($decoded)) {
+                $val = $decoded;
+            }
+        }
+
+        // Direct DB fallback if get_option returned non-array
+        if (!is_array($val)) {
+            global $wpdb;
+            if ($wpdb) {
+                $row = $wpdb->get_var($wpdb->prepare("SELECT option_value FROM {$wpdb->options} WHERE option_name = %s LIMIT 1", 'hoktech_wa_product_button'));
+                if ($row) {
+                    $unserialized = maybe_unserialize($row);
+                    if (is_array($unserialized)) {
+                        $val = $unserialized;
+                    } else {
+                        $decoded = json_decode($row, true);
+                        if (is_array($decoded)) {
+                            $val = $decoded;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!is_array($val)) {
+            return $defaults;
+        }
+
+        return wp_parse_args($val, $defaults);
+    }
+}
+
+/**
+ * Update Product WhatsApp Button settings safely
+ */
+if (!function_exists('hoktech_update_product_button_settings')) {
+    function hoktech_update_product_button_settings($settings) {
+        if (!is_array($settings)) {
+            return false;
+        }
+
+        // Ensure 4-byte emojis don't break utf8 tables
+        if (function_exists('wp_encode_emoji') && isset($settings['message_template'])) {
+            $settings['message_template'] = wp_encode_emoji($settings['message_template']);
+        }
+
+        wp_cache_delete('hoktech_wa_product_button', 'options');
+        wp_cache_delete('alloptions', 'options');
+
+        update_option('hoktech_wa_product_button', $settings, 'yes');
+
+        // Verify write or do direct DB update
+        $verify = get_option('hoktech_wa_product_button', null);
+        if (!is_array($verify)) {
+            global $wpdb;
+            if ($wpdb) {
+                $wpdb->replace(
+                    $wpdb->options,
+                    [
+                        'option_name'  => 'hoktech_wa_product_button',
+                        'option_value' => maybe_serialize($settings),
+                        'autoload'     => 'yes',
+                    ],
+                    ['%s', '%s', '%s']
+                );
+                wp_cache_delete('alloptions', 'options');
+                wp_cache_delete('hoktech_wa_product_button', 'options');
+            }
+        }
+
+        return true;
+    }
+}
+
+/**
  * Main Plugin Class
  */
 final class HokTech_sender {
@@ -94,6 +196,7 @@ final class HokTech_sender {
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-order-notifications.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-vendor-notifications.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-otp-verification.php';
+        require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-product-button.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-custom-message.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/class-order-metabox.php';
         require_once HOKTECH_WA_PLUGIN_DIR . 'includes/country-codes.php';
@@ -135,6 +238,7 @@ final class HokTech_sender {
             new HokTech_Order_Notifications();
             new HokTech_Vendor_Notifications();
             new HokTech_OTP_Verification();
+            new HokTech_Product_Button();
             new HokTech_Order_MetaBox();
         }
     }
@@ -163,13 +267,19 @@ final class HokTech_sender {
 
     public function frontend_assets() {
         $otp_settings = get_option('hoktech_wa_otp_settings', []);
+        $product_settings = function_exists('hoktech_get_product_button_settings') ? hoktech_get_product_button_settings() : get_option('hoktech_wa_product_button', []);
         $country_selector_enabled = !empty($otp_settings['enable_country_selector']);
         $otp_enabled = !empty($otp_settings['enable_checkout_otp']) || !empty($otp_settings['enable_registration_otp']);
+        $product_btn_enabled = !empty($product_settings['enabled']);
         $is_checkout = function_exists('is_checkout') && is_checkout();
+        $is_product  = function_exists('is_product') && is_product();
 
-        if ($otp_enabled || $country_selector_enabled || $is_checkout) {
-            wp_enqueue_style('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/css/frontend-style.css', [], HOKTECH_WA_VERSION);
-            wp_enqueue_script('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/js/frontend-otp.js', ['jquery'], HOKTECH_WA_VERSION, true);
+        if ($otp_enabled || $country_selector_enabled || $product_btn_enabled || $is_checkout || $is_product) {
+            $css_ver = file_exists(HOKTECH_WA_PLUGIN_DIR . 'assets/css/frontend-style.css') ? filemtime(HOKTECH_WA_PLUGIN_DIR . 'assets/css/frontend-style.css') : HOKTECH_WA_VERSION;
+            $js_ver  = file_exists(HOKTECH_WA_PLUGIN_DIR . 'assets/js/frontend-otp.js') ? filemtime(HOKTECH_WA_PLUGIN_DIR . 'assets/js/frontend-otp.js') : HOKTECH_WA_VERSION;
+
+            wp_enqueue_style('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/css/frontend-style.css', [], $css_ver);
+            wp_enqueue_script('hoktech-wa-frontend', HOKTECH_WA_PLUGIN_URL . 'assets/js/frontend-otp.js', ['jquery'], $js_ver, true);
 
             $localize_data = [
                 'ajaxUrl'        => admin_url('admin-ajax.php'),
@@ -227,6 +337,25 @@ register_activation_hook(__FILE__, function () {
             'statuses'       => ['processing'],
             'phone_meta_key' => '',
             'message'        => "🏪 مرحباً {vendor_name}،\nلديك طلب جديد رقم #{order_id} من العميل {customer_name}\n\nالمنتجات الخاصة بك:\n{vendor_items}\n\nإجمالي منتجاتك: {vendor_items_total}\n\nيرجى التجهيز في أقرب وقت ✅\n{site_name}",
+        ]);
+    }
+    if (!get_option('hoktech_wa_product_button')) {
+        update_option('hoktech_wa_product_button', [
+            'enabled'              => true,
+            'phone'                => '',
+            'default_country_code' => 'EG',
+            'button_text'          => 'استفسار عبر واتساب',
+            'button_position'      => 'after_add_to_cart_btn',
+            'button_style'         => 'default',
+            'btn_bg_color'         => '#25D366',
+            'btn_text_color'       => '#ffffff',
+            'btn_border_radius'    => 'rounded',
+            'show_icon'            => true,
+            'open_in_new_tab'      => true,
+            'hide_add_to_cart'     => false,
+            'show_on_mobile_only'  => false,
+            'use_vendor_phone'     => false,
+            'message_template'     => "مرحباً {site_name}، أود الاستفسار عن هذا المنتج:\n📌 *{product_name}*\n💰 السعر: {product_price}\n🏷️ كود المنتج (SKU): {product_sku}\n🔗 الرابط: {product_url}",
         ]);
     }
 });

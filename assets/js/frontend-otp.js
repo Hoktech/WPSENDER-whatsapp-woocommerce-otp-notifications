@@ -330,8 +330,7 @@
                         if (digits.length === 0) {
                             setPhoneFieldError(null);
                         } else if (digits.length < 11) {
-                            setPhoneFieldError('رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
-');
+                            setPhoneFieldError('رقم الهاتف المصري يجب أن يتكون من 11 رقم (01xxxxxxxxx)');
                         } else if (digits.length === 11) {
                             if (digits.indexOf('01') !== 0) {
                                 setPhoneFieldError('رقم الهاتف المصري يجب أن يبدأ بـ (01)');
@@ -461,8 +460,7 @@
             if (digits.length !== 11 || digits.indexOf('01') !== 0) {
                 var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
                     ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
-                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
-                ';
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (01xxxxxxxxx)';
                 setPhoneFieldError(msg);
                 $phoneField.focus();
                 return;
@@ -495,8 +493,7 @@
             if (digits.length !== 11 || digits.indexOf('01') !== 0) {
                 var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
                     ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
-                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
-                ';
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (01xxxxxxxxx)';
                 setPhoneFieldError(msg);
                 $phoneField.focus();
                 return;
@@ -528,8 +525,7 @@
             if (digits.length !== 11 || digits.indexOf('01') !== 0) {
                 var msg = (digits.length === 11 && digits.indexOf('01') !== 0)
                     ? 'رقم الهاتف المصري يجب أن يبدأ بـ (01)'
-                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (0111111111)
-                ';
+                    : 'رقم الهاتف المصري يجب أن يتكون من 11 رقم (01xxxxxxxxx)';
                 setPhoneFieldError(msg);
                 if ($phoneField.length) {
                     $phoneField.focus();
@@ -631,10 +627,291 @@
         }, 1000);
     }
 
+    // ========== Variable Product WhatsApp Button Live Update ==========
+    function getDecodedTemplate($b) {
+        var raw = $b.attr('data-base-template') || $b.data('base-template') || '';
+        if (!raw) return '';
+        try {
+            return decodeURIComponent(raw);
+        } catch (e) {
+            return raw;
+        }
+    }
+
+    function initVariableProductWhatsApp() {
+        var $btn = $('.hoktech-wa-product-btn');
+        if (!$btn.length) return;
+
+        $(document).on('found_variation', 'form.variations_form', function (event, variation) {
+            var $button = $('.hoktech-wa-product-btn, .hoktech-wa-floating-btn').first();
+            if (!$button.length || !variation) return;
+
+            var baseTemplate = getDecodedTemplate($button);
+            var rawPhone     = $button.data('raw-phone') || '';
+            var siteName     = $button.data('site-name') || '';
+            var baseName     = $button.data('product-name') || '';
+            var baseSku      = $button.data('product-sku') || '';
+            var basePrice    = $button.data('product-price') || '';
+            var baseUrl      = $button.data('product-url') || window.location.href;
+
+            if (!baseTemplate) return;
+
+            // Build variation name / attributes description
+            var varAttributes = [];
+            if (variation.attributes) {
+                $.each(variation.attributes, function (attrKey, attrVal) {
+                    if (attrVal) {
+                        var cleanKey = attrKey.replace('attribute_', '').replace('pa_', '');
+                        varAttributes.push(attrVal);
+                    }
+                });
+            }
+
+            var varName = baseName;
+            if (varAttributes.length > 0) {
+                varName += ' (' + varAttributes.join(', ') + ')';
+            }
+
+            var varSku = variation.sku ? variation.sku : baseSku;
+            
+            // Format price if available
+            var varPrice = basePrice;
+            if (variation.price_html) {
+                varPrice = $('<div>').html(variation.price_html).text().trim();
+            } else if (variation.display_price !== undefined) {
+                varPrice = variation.display_price;
+            }
+
+            var msg = baseTemplate
+                .replace(/{product_name}/g, varName)
+                .replace(/{product_price}/g, varPrice)
+                .replace(/{product_sku}/g, varSku)
+                .replace(/{product_url}/g, baseUrl)
+                .replace(/{site_name}/g, siteName);
+
+            var newHref = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(rawPhone) + '&text=' + encodeURIComponent(msg);
+            $('.hoktech-wa-product-btn, .hoktech-wa-floating-btn').attr('href', newHref);
+        });
+
+        $(document).on('reset_data', 'form.variations_form', function () {
+            var $button = $('.hoktech-wa-product-btn, .hoktech-wa-floating-btn').first();
+            if (!$button.length) return;
+
+            var baseTemplate = getDecodedTemplate($button);
+            var rawPhone     = $button.data('raw-phone') || '';
+            var siteName     = $button.data('site-name') || '';
+            var baseName     = $button.data('product-name') || '';
+            var baseSku      = $button.data('product-sku') || '';
+            var basePrice    = $button.data('product-price') || '';
+            var baseUrl      = $button.data('product-url') || window.location.href;
+
+            if (!baseTemplate) return;
+
+            var msg = baseTemplate
+                .replace(/{product_name}/g, baseName)
+                .replace(/{product_price}/g, basePrice)
+                .replace(/{product_sku}/g, baseSku)
+                .replace(/{product_url}/g, baseUrl)
+                .replace(/{site_name}/g, siteName);
+
+            var newHref = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(rawPhone) + '&text=' + encodeURIComponent(msg);
+            $('.hoktech-wa-product-btn, .hoktech-wa-floating-btn').attr('href', newHref);
+        });
+    }
+
+    // ========== Draggable Floating WhatsApp Button ==========
+    function initDraggableWhatsAppButton() {
+        var $btn = $('.hoktech-wa-floating-btn, .hoktech-draggable-btn');
+        if (!$btn.length) return;
+
+        $btn.each(function () {
+            var el = this;
+            var isDragging = false;
+            var hasMoved = false;
+            var startX = 0;
+            var startY = 0;
+            var shiftX = 0;
+            var shiftY = 0;
+
+            // 1. Restore & Sanitize Saved Position
+            function restorePosition() {
+                try {
+                    var saved = localStorage.getItem('hoktech_wa_float_pos');
+                    if (saved) {
+                        var pos = JSON.parse(saved);
+                        if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
+                            var winW = window.innerWidth || document.documentElement.clientWidth;
+                            var winH = window.innerHeight || document.documentElement.clientHeight;
+                            var btnW = el.offsetWidth || 60;
+                            var btnH = el.offsetHeight || 60;
+
+                            var left = Math.max(10, Math.min(pos.left, winW - btnW - 10));
+                            var top  = Math.max(10, Math.min(pos.top, winH - btnH - 10));
+
+                            el.style.setProperty('position', 'fixed', 'important');
+                            el.style.setProperty('left', left + 'px', 'important');
+                            el.style.setProperty('top', top + 'px', 'important');
+                            el.style.setProperty('right', 'auto', 'important');
+                            el.style.setProperty('bottom', 'auto', 'important');
+                            el.style.setProperty('margin', '0', 'important');
+                        }
+                    }
+                } catch (err) {}
+            }
+            restorePosition();
+
+            // 2. Drag Start
+            function startDrag(clientX, clientY) {
+                var rect = el.getBoundingClientRect();
+                shiftX = clientX - rect.left;
+                shiftY = clientY - rect.top;
+
+                startX = clientX;
+                startY = clientY;
+                isDragging = true;
+                hasMoved = false;
+
+                el.classList.add('is-dragging');
+            }
+
+            // 3. Drag Move
+            function moveDrag(clientX, clientY) {
+                if (!isDragging) return;
+
+                var dx = clientX - startX;
+                var dy = clientY - startY;
+
+                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+                    hasMoved = true;
+                }
+
+                var winW = window.innerWidth || document.documentElement.clientWidth;
+                var winH = window.innerHeight || document.documentElement.clientHeight;
+                var btnW = el.offsetWidth || 60;
+                var btnH = el.offsetHeight || 60;
+
+                var newLeft = clientX - shiftX;
+                var newTop  = clientY - shiftY;
+
+                // Clamping inside viewport with 10px margin
+                newLeft = Math.max(10, Math.min(newLeft, winW - btnW - 10));
+                newTop  = Math.max(10, Math.min(newTop, winH - btnH - 10));
+
+                el.style.setProperty('position', 'fixed', 'important');
+                el.style.setProperty('left', newLeft + 'px', 'important');
+                el.style.setProperty('top', newTop + 'px', 'important');
+                el.style.setProperty('right', 'auto', 'important');
+                el.style.setProperty('bottom', 'auto', 'important');
+                el.style.setProperty('margin', '0', 'important');
+            }
+
+            // 4. Drag End
+            function endDrag() {
+                if (!isDragging) return;
+                isDragging = false;
+                el.classList.remove('is-dragging');
+
+                if (hasMoved) {
+                    try {
+                        var rect = el.getBoundingClientRect();
+                        var winW = window.innerWidth || document.documentElement.clientWidth;
+                        var winH = window.innerHeight || document.documentElement.clientHeight;
+                        var btnW = el.offsetWidth || 60;
+                        var btnH = el.offsetHeight || 60;
+
+                        var saveLeft = Math.max(10, Math.min(rect.left, winW - btnW - 10));
+                        var saveTop  = Math.max(10, Math.min(rect.top, winH - btnH - 10));
+
+                        localStorage.setItem('hoktech_wa_float_pos', JSON.stringify({
+                            left: Math.round(saveLeft),
+                            top: Math.round(saveTop)
+                        }));
+                    } catch (err) {}
+                }
+            }
+
+            // Mouse Drag (Desktop)
+            el.addEventListener('mousedown', function (e) {
+                if (e.button !== 0) return; // Only left-click
+                e.preventDefault();
+                startDrag(e.clientX, e.clientY);
+
+                function onMouseMove(ev) {
+                    ev.preventDefault();
+                    moveDrag(ev.clientX, ev.clientY);
+                }
+
+                function onMouseUp() {
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                    endDrag();
+                }
+
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            // Touch Drag (Mobile / Tablets)
+            el.addEventListener('touchstart', function (e) {
+                if (e.touches && e.touches.length === 1) {
+                    startDrag(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: true });
+
+            el.addEventListener('touchmove', function (e) {
+                if (isDragging && e.touches && e.touches.length === 1) {
+                    e.preventDefault();
+                    moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+                }
+            }, { passive: false });
+
+            el.addEventListener('touchend', function () {
+                endDrag();
+            });
+
+            el.addEventListener('touchcancel', function () {
+                endDrag();
+            });
+
+            // Window resize clamping
+            window.addEventListener('resize', function () {
+                if (!el || isDragging) return;
+                var rect = el.getBoundingClientRect();
+                var winW = window.innerWidth || document.documentElement.clientWidth;
+                var winH = window.innerHeight || document.documentElement.clientHeight;
+                var btnW = el.offsetWidth || 60;
+                var btnH = el.offsetHeight || 60;
+
+                if (rect.right > winW || rect.bottom > winH || rect.left < 0 || rect.top < 0) {
+                    var left = Math.max(10, Math.min(rect.left, winW - btnW - 10));
+                    var top  = Math.max(10, Math.min(rect.top, winH - btnH - 10));
+
+                    el.style.setProperty('position', 'fixed', 'important');
+                    el.style.setProperty('left', left + 'px', 'important');
+                    el.style.setProperty('top', top + 'px', 'important');
+                    el.style.setProperty('right', 'auto', 'important');
+                    el.style.setProperty('bottom', 'auto', 'important');
+                }
+            });
+
+            // Prevent WhatsApp link opening when element was dragged
+            el.addEventListener('click', function (e) {
+                if (hasMoved) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    hasMoved = false;
+                    return false;
+                }
+            }, true);
+        });
+    }
+
     // ========== Initialize ==========
     $(document).ready(function () {
         initCountrySelector();
         initEgyptPhoneRestriction();
+        initVariableProductWhatsApp();
+        initDraggableWhatsAppButton();
     });
 
     // Also try on WooCommerce Blocks ready

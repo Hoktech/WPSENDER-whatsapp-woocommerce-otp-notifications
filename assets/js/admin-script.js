@@ -4,21 +4,60 @@
 (function ($) {
     'use strict';
 
-    // ========== Tab Switching ==========
+    // ========== Tab Switching with Memory ==========
+    function switchTab(tab) {
+        if (!tab) return;
+        var $targetBtn = $('.hoktech-tab[data-tab="' + tab + '"]');
+        var $targetContent = $('#tab-' + tab);
+
+        if ($targetBtn.length && $targetContent.length) {
+            $('.hoktech-tab').removeClass('active');
+            $targetBtn.addClass('active');
+
+            $('.hoktech-tab-content').removeClass('active');
+            $targetContent.addClass('active');
+
+            if (tab === 'vendors' && $('#hoktech-vendor-session-select').length) {
+                loadVendorSessions(false);
+            }
+
+            try {
+                localStorage.setItem('hoktech_admin_active_tab', tab);
+            } catch (err) {}
+        }
+    }
+
     $(document).on('click', '.hoktech-tab', function () {
         var tab = $(this).data('tab');
+        switchTab(tab);
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(null, null, '#tab=' + tab);
+        }
+    });
 
-        // Update tab buttons
-        $('.hoktech-tab').removeClass('active');
-        $(this).addClass('active');
+    // Auto-restore active tab on load
+    $(document).ready(function () {
+        var tabToOpen = '';
+        var match = window.location.href.match(/[?&]tab=([^&#]+)/);
+        if (match) {
+            tabToOpen = match[1];
+        } else if (window.location.hash) {
+            var hashMatch = window.location.hash.match(/tab=([^&]+)/);
+            if (hashMatch) {
+                tabToOpen = hashMatch[1];
+            } else {
+                tabToOpen = window.location.hash.replace('#', '');
+            }
+        }
 
-        // Update tab content
-        $('.hoktech-tab-content').removeClass('active');
-        $('#tab-' + tab).addClass('active');
+        if (!tabToOpen) {
+            try {
+                tabToOpen = localStorage.getItem('hoktech_admin_active_tab');
+            } catch (err) {}
+        }
 
-        // Load vendor sessions when switching to vendor tab
-        if (tab === 'vendors' && $('#hoktech-vendor-session-select').length) {
-            loadVendorSessions(false);
+        if (tabToOpen) {
+            switchTab(tabToOpen);
         }
     });
 
@@ -597,6 +636,96 @@
         } else {
             $preset.val('');
         }
+    });
+
+    // ========== Save Product WhatsApp Button Settings ==========
+    function saveProductButtonSettings(e) {
+        if (e) {
+            e.preventDefault();
+        }
+
+        var $form   = $('#hoktech-product-button-form');
+        var $btn    = $('#hoktech-product-btn-save');
+        var $result = $('#hoktech-product-btn-result');
+        var originalText = $btn.html();
+
+        $btn.prop('disabled', true);
+        $result.hide();
+
+        var isEnabled = $('#hoktech-product-btn-enabled').is(':checked') || $form.find('input[name="product_btn_enabled"]').is(':checked');
+
+        var postData = {
+            action:                   'hoktech_save_product_button',
+            nonce:                    hoktechWA.nonce,
+            product_btn_enabled:      isEnabled ? '1' : '',
+            product_btn_phone:        $('#hoktech-product-btn-phone').val(),
+            default_country_code:     $('#hoktech-product-btn-country').val(),
+            product_btn_text:         $('#hoktech-product-btn-text').val(),
+            product_btn_position:     $('#hoktech-product-btn-position').val(),
+            product_btn_style:        $('#hoktech-product-btn-style').val(),
+            product_btn_bg_color:     $('#hoktech-product-btn-bg-color').val(),
+            product_btn_text_color:   $('#hoktech-product-btn-text-color').val(),
+            product_btn_border_radius:$('#hoktech-product-btn-shape').val(),
+            product_btn_draggable:    $form.find('input[name="product_btn_draggable"]').is(':checked') ? '1' : '',
+            product_btn_show_icon:    $form.find('input[name="product_btn_show_icon"]').is(':checked') ? '1' : '',
+            product_btn_open_tab:     $form.find('input[name="product_btn_open_tab"]').is(':checked') ? '1' : '',
+            product_btn_hide_cart:    $form.find('input[name="product_btn_hide_cart"]').is(':checked') ? '1' : '',
+            product_btn_mobile_only:  $form.find('input[name="product_btn_mobile_only"]').is(':checked') ? '1' : '',
+            product_btn_use_vendor:   $form.find('input[name="product_btn_use_vendor"]').is(':checked') ? '1' : '',
+            product_btn_message:      $('#hoktech-product-btn-message').val()
+        };
+
+        $.post(hoktechWA.ajaxUrl, postData, function (response) {
+            $btn.prop('disabled', false).html(originalText);
+            if (response.success) {
+                $result.html('✅ ' + response.data.message).removeClass('error').addClass('success').fadeIn();
+                setTimeout(function () { $result.fadeOut(); }, 4000);
+            } else {
+                $result.html('❌ ' + (response.data?.message || 'خطأ')).removeClass('success').addClass('error').fadeIn();
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).html(originalText);
+            $result.html('❌ ' + hoktechWA.strings.error).removeClass('success').addClass('error').fadeIn();
+        });
+    }
+
+    $(document).on('submit', '#hoktech-product-button-form', saveProductButtonSettings);
+
+    // ========== Product Button: Insert Variable Tags ==========
+    $(document).on('click', '.hoktech-insert-product-var', function () {
+        var varText = $(this).data('var');
+        var $textarea = $('#hoktech-product-btn-message');
+        if (!$textarea.length) return;
+
+        var textarea = $textarea[0];
+        var startPos = textarea.selectionStart;
+        var endPos   = textarea.selectionEnd;
+        var currentVal = $textarea.val();
+
+        $textarea.val(currentVal.substring(0, startPos) + varText + currentVal.substring(endPos));
+
+        var newPos = startPos + varText.length;
+        textarea.setSelectionRange(newPos, newPos);
+        $textarea.focus();
+    });
+
+    // ========== Product Button: Style Change Toggle ==========
+    $(document).on('change', '#hoktech-product-btn-style', function () {
+        var style = $(this).val();
+        if (style === 'custom') {
+            $('#hoktech-custom-colors-row').css('display', 'grid').hide().fadeIn(200);
+        } else {
+            $('#hoktech-custom-colors-row').fadeOut(200);
+        }
+    });
+
+    // ========== Product Button: Sync Color Pickers with Hex Fields ==========
+    $(document).on('input change', '#hoktech-product-btn-bg-color', function () {
+        $('#hoktech-product-btn-bg-hex').val($(this).val());
+    });
+
+    $(document).on('input change', '#hoktech-product-btn-text-color', function () {
+        $('#hoktech-product-btn-text-hex').val($(this).val());
     });
 
 })(jQuery);
