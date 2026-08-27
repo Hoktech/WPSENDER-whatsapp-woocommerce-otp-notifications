@@ -196,7 +196,17 @@ class HokTech_Admin_Settings {
         }
 
         update_option('hoktech_wa_notification_settings', $settings);
-        wp_send_json_success(['message' => __('تم حفظ إعدادات الإشعارات بنجاح', 'sender-notification')]);
+
+        if (isset($_POST['delivery_settings']) && is_array($_POST['delivery_settings'])) {
+            $deliv_raw = wp_unslash($_POST['delivery_settings']);
+            $delivery_settings = [
+                'default_estimated_delivery' => sanitize_text_field($deliv_raw['default_estimated_delivery'] ?? ''),
+                'custom_meta_key'            => sanitize_text_field($deliv_raw['custom_meta_key'] ?? ''),
+            ];
+            update_option('hoktech_wa_delivery_settings', $delivery_settings);
+        }
+
+        wp_send_json_success(['message' => __('تم حفظ إعدادات الإشعارات ووقت التوصيل بنجاح', 'sender-notification')]);
     }
 
     /**
@@ -389,6 +399,7 @@ class HokTech_Admin_Settings {
         $admin_notifications = get_option('hoktech_wa_admin_notifications', []);
         $vendor_notifications = get_option('hoktech_wa_vendor_notifications', []);
         $product_button = function_exists('hoktech_get_product_button_settings') ? hoktech_get_product_button_settings() : get_option('hoktech_wa_product_button', []);
+        $delivery_settings = function_exists('hoktech_get_delivery_settings') ? hoktech_get_delivery_settings() : get_option('hoktech_wa_delivery_settings', []);
         ?>
         <div class="wrap hoktech-wrap" dir="rtl">
             <div class="hoktech-header">
@@ -586,9 +597,33 @@ class HokTech_Admin_Settings {
                         <p class="hoktech-description"><?php esc_html_e('قم بتفعيل وتخصيص الرسائل لكل حالة من حالات الطلب', 'sender-notification'); ?></p>
                         <div class="hoktech-placeholders-info">
                             <strong><?php esc_html_e('المتغيرات المتاحة:', 'sender-notification'); ?></strong>
-                            <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code>
+                            <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code> <code>{estimated_delivery}</code>
                         </div>
                         <form id="hoktech-notifications-form">
+                            <!-- Estimated Delivery Settings -->
+                            <div class="hoktech-form-group" style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin-bottom: 25px;">
+                                <h3 style="margin-top: 0; margin-bottom: 8px; font-size: 15px; display: flex; align-items: center; gap: 8px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
+                                    <?php esc_html_e('إعدادات وقت التوصيل المتوقع {estimated_delivery}', 'sender-notification'); ?>
+                                </h3>
+                                <p class="description" style="margin-bottom: 14px; font-size: 13px; color: #64748b;">
+                                    <?php esc_html_e('تقوم الإضافة تلقائياً بفحص وقت التوصيل للمنتجات، وإذا احتوى الطلب على عدة منتجات بأوقات توصيل مختلفة يتم تلقائياً اختيار الحد الأقصى (عدد الأيام الأكثر) لإرساله للعميل.', 'sender-notification'); ?>
+                                </p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                    <div>
+                                        <label for="hoktech-default-estimated-delivery" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">
+                                            <?php esc_html_e('وقت التوصيل الافتراضي (إذا لم يُحدد بالمنتج)', 'sender-notification'); ?>
+                                        </label>
+                                        <input type="text" id="hoktech-default-estimated-delivery" name="delivery_settings[default_estimated_delivery]" class="hoktech-input" value="<?php echo esc_attr($delivery_settings['default_estimated_delivery'] ?? 'من 10 لـ 15 يوم عمل للاستلام'); ?>" placeholder="<?php esc_attr_e('مثال: من 10 لـ 15 يوم عمل للاستلام', 'sender-notification'); ?>" style="width: 100%;">
+                                    </div>
+                                    <div>
+                                        <label for="hoktech-custom-meta-key" style="display: block; font-weight: 600; margin-bottom: 6px; font-size: 13px;">
+                                            <?php esc_html_e('مفتاح الحقل المخصص بالمنتج (اختياري)', 'sender-notification'); ?>
+                                        </label>
+                                        <input type="text" id="hoktech-custom-meta-key" name="delivery_settings[custom_meta_key]" class="hoktech-input" value="<?php echo esc_attr($delivery_settings['custom_meta_key'] ?? ''); ?>" placeholder="<?php esc_attr_e('اتركه فارغاً للاكتشاف التلقائي الذكي', 'sender-notification'); ?>" style="width: 100%;">
+                                    </div>
+                                </div>
+                            </div>
                             <?php
                             // Get all WooCommerce order statuses dynamically
                             $wc_statuses = function_exists('wc_get_order_statuses') ? wc_get_order_statuses() : [];
@@ -704,7 +739,7 @@ class HokTech_Admin_Settings {
                                 ?></textarea>
                                 <div class="hoktech-placeholders-info" style="margin-top: 10px; margin-bottom: 0;">
                                     <strong><?php esc_html_e('المتغيرات المتاحة:', 'sender-notification'); ?></strong>
-                                    <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code>
+                                    <code>{order_id}</code> <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{order_items}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code> <code>{estimated_delivery}</code>
                                 </div>
                             </div>
 
@@ -961,7 +996,7 @@ class HokTech_Admin_Settings {
                                     <code>{vendor_items}</code> <?php esc_html_e('الأيتم الخاصة بهذا الفيندور فقط', 'sender-notification'); ?> &nbsp;
                                     <code>{vendor_items_total}</code> <?php esc_html_e('إجمالي أيتم الفيندور', 'sender-notification'); ?><br style="margin:4px 0">
                                     <code>{order_id}</code> / <code>{sub_order_id}</code> (<?php esc_html_e('رقم الطلب الفرعي', 'sender-notification'); ?>) &nbsp;
-                                    <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code>
+                                    <code>{customer_name}</code> <code>{order_total}</code> <code>{order_status}</code> <code>{site_name}</code> <code>{billing_phone}</code> <code>{sku}</code> <code>{product_url}</code> <code>{estimated_delivery}</code>
                                 </div>
                             </div>
 
@@ -1091,8 +1126,8 @@ class HokTech_Admin_Settings {
                                         <option value="before_add_to_cart_form" <?php selected($pos, 'before_add_to_cart_form'); ?>><?php esc_html_e('أعلى صندوق أضف للسلة', 'sender-notification'); ?></option>
                                         <option value="after_price" <?php selected($pos, 'after_price'); ?>><?php esc_html_e('أسفل السعر مباشرة', 'sender-notification'); ?></option>
                                         <option value="after_summary" <?php selected($pos, 'after_summary'); ?>><?php esc_html_e('أسفل تفاصيل وملخص المنتج', 'sender-notification'); ?></option>
-                                        <option value="floating_bottom_right" <?php selected($pos, 'floating_bottom_right'); ?>><?php esc_html_e('زر عائم أسفل يمين الشاشة (Floating Right)', 'sender-notification'); ?></option>
-                                        <option value="floating_bottom_left" <?php selected($pos, 'floating_bottom_left'); ?>><?php esc_html_e('زر عائم أسفل يسار الشاشة (Floating Left)', 'sender-notification'); ?></option>
+                                        <option value="floating_bottom_right" <?php selected($pos, 'floating_bottom_right'); ?>><?php esc_html_e('زر عائم أسفل يمين الشاشة (ثابت غير متحرك - Floating Right)', 'sender-notification'); ?></option>
+                                        <option value="floating_bottom_left" <?php selected($pos, 'floating_bottom_left'); ?>><?php esc_html_e('زر عائم أسفل يسار الشاشة (ثابت غير متحرك - Floating Left)', 'sender-notification'); ?></option>
                                         <option value="shortcode_only" <?php selected($pos, 'shortcode_only'); ?>><?php esc_html_e('بواسطة الشورت كود فقط [hoktech_whatsapp_button]', 'sender-notification'); ?></option>
                                     </select>
                                 </div>
@@ -1272,72 +1307,6 @@ class HokTech_Admin_Settings {
             </div>
         </div>
 
-        <script type="text/javascript">
-        (function($) {
-            $(function() {
-                // Tab switching memory
-                var currentTab = localStorage.getItem('hoktech_admin_active_tab') || (window.location.hash ? window.location.hash.replace('#tab=', '').replace('#', '') : '') <?php echo (!empty($saved_notice) || (isset($_GET['tab']) && $_GET['tab'] === 'product-button')) ? "|| 'product-button'" : ""; ?>;
-                if (currentTab) {
-                    var $tBtn = $('.hoktech-tab[data-tab="' + currentTab + '"]');
-                    var $tContent = $('#tab-' + currentTab);
-                    if ($tBtn.length && $tContent.length) {
-                        $('.hoktech-tab').removeClass('active');
-                        $tBtn.addClass('active');
-                        $('.hoktech-tab-content').removeClass('active');
-                        $tContent.addClass('active');
-                    }
-                }
-
-                // Inline submit handler for Product WhatsApp Button
-                $('#hoktech-product-button-form').off('submit.hoktech_inline').on('submit.hoktech_inline', function(e) {
-                    e.preventDefault();
-                    var $form = $(this);
-                    var $btn = $('#hoktech-product-btn-save');
-                    var $result = $('#hoktech-product-btn-result');
-                    var origHtml = $btn.html();
-
-                    $btn.prop('disabled', true);
-                    $result.hide();
-
-                    var isEnabled = $('#hoktech-product-btn-enabled').is(':checked') ? '1' : '';
-
-                    var data = {
-                        action: 'hoktech_save_product_button',
-                        nonce: '<?php echo esc_js(wp_create_nonce('hoktech_wa_nonce')); ?>',
-                        product_btn_enabled: isEnabled,
-                        product_btn_phone: $('#hoktech-product-btn-phone').val(),
-                        default_country_code: $('#hoktech-product-btn-country').val(),
-                        product_btn_text: $('#hoktech-product-btn-text').val(),
-                        product_btn_position: $('#hoktech-product-btn-position').val(),
-                        product_btn_style: $('#hoktech-product-btn-style').val(),
-                        product_btn_bg_color: $('#hoktech-product-btn-bg-color').val(),
-                        product_btn_text_color: $('#hoktech-product-btn-text-color').val(),
-                        product_btn_border_radius: $('#hoktech-product-btn-shape').val(),
-                        product_btn_draggable: $form.find('input[name="product_btn_draggable"]').is(':checked') ? '1' : '',
-                        product_btn_show_icon: $form.find('input[name="product_btn_show_icon"]').is(':checked') ? '1' : '',
-                        product_btn_open_tab: $form.find('input[name="product_btn_open_tab"]').is(':checked') ? '1' : '',
-                        product_btn_hide_cart: $form.find('input[name="product_btn_hide_cart"]').is(':checked') ? '1' : '',
-                        product_btn_mobile_only: $form.find('input[name="product_btn_mobile_only"]').is(':checked') ? '1' : '',
-                        product_btn_use_vendor: $form.find('input[name="product_btn_use_vendor"]').is(':checked') ? '1' : '',
-                        product_btn_message: $('#hoktech-product-btn-message').val()
-                    };
-
-                    $.post('<?php echo esc_url(admin_url('admin-ajax.php')); ?>', data, function(res) {
-                        $btn.prop('disabled', false).html(origHtml);
-                        if (res && res.success) {
-                            $result.html('✅ ' + res.data.message).removeClass('error').addClass('success').fadeIn();
-                            setTimeout(function() { $result.fadeOut(); }, 4000);
-                        } else {
-                            $result.html('❌ ' + ((res && res.data && res.data.message) ? res.data.message : 'خطأ')).removeClass('success').addClass('error').fadeIn();
-                        }
-                    }).fail(function() {
-                        $btn.prop('disabled', false).html(origHtml);
-                        $result.html('❌ حدث خطأ في الاتصال بالخادم').removeClass('success').addClass('error').fadeIn();
-                    });
-                });
-            });
-        })(jQuery);
-        </script>
         <?php
     }
 }

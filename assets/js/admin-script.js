@@ -327,10 +327,16 @@
 
         $btn.prop('disabled', true);
 
+        var deliverySettings = {
+            default_estimated_delivery: $('#hoktech-default-estimated-delivery').val() || '',
+            custom_meta_key: $('#hoktech-custom-meta-key').val() || ''
+        };
+
         $.post(hoktechWA.ajaxUrl, {
             action: 'hoktech_save_notifications',
             nonce: hoktechWA.nonce,
-            notifications: collectNotificationData()
+            notifications: collectNotificationData(),
+            delivery_settings: deliverySettings
         }, function (response) {
             $btn.prop('disabled', false);
             if (response.success) {

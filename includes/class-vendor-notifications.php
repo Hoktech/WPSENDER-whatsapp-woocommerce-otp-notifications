@@ -418,20 +418,28 @@ class HokTech_Vendor_Notifications {
             $display_order_id = $order->get_order_number();
         }
 
+        // Calculate estimated delivery
+        $estimated_delivery = function_exists('hoktech_get_order_estimated_delivery')
+            ? hoktech_get_order_estimated_delivery($order, $items)
+            : '';
+
         $replacements = [
-            '{order_id}'          => $display_order_id,
-            '{sub_order_id}'      => $display_order_id,
-            '{customer_name}'     => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
-            '{order_total}'       => $clean_total,
-            '{order_status}'      => wc_get_order_status_name($order->get_status()),
-            '{site_name}'         => get_bloginfo('name'),
-            '{order_items}'       => implode("\n", $all_items_text),
-            '{billing_phone}'     => $order->get_billing_phone(),
-            '{sku}'               => $sku_list,
-            '{product_url}'       => $url_list,
-            '{vendor_name}'       => $vendor_name,
-            '{vendor_items}'      => implode("\n", $items_lines),
-            '{vendor_items_total}'=> $vendor_total_formatted,
+            '{order_id}'                => $display_order_id,
+            '{sub_order_id}'            => $display_order_id,
+            '{customer_name}'           => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+            '{order_total}'             => $clean_total,
+            '{order_status}'            => wc_get_order_status_name($order->get_status()),
+            '{site_name}'               => get_bloginfo('name'),
+            '{order_items}'             => implode("\n", $all_items_text),
+            '{billing_phone}'           => $order->get_billing_phone(),
+            '{sku}'                     => $sku_list,
+            '{product_url}'             => $url_list,
+            '{estimated_delivery}'      => $estimated_delivery,
+            '{delivery_time}'           => $estimated_delivery,
+            '{estimated_delivery_days}' => $estimated_delivery,
+            '{vendor_name}'             => $vendor_name,
+            '{vendor_items}'            => implode("\n", $items_lines),
+            '{vendor_items_total}'      => $vendor_total_formatted,
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $template);

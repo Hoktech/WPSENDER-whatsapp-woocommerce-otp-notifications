@@ -152,6 +152,7 @@ class HokTech_Order_MetaBox {
                                 <code class="hoktech-var-tag" data-var="{customer_name}">{customer_name}</code>
                                 <code class="hoktech-var-tag" data-var="{order_total}">{order_total}</code>
                                 <code class="hoktech-var-tag" data-var="{order_status}">{order_status}</code>
+                                <code class="hoktech-var-tag" data-var="{estimated_delivery}">{estimated_delivery}</code>
                                 <code class="hoktech-var-tag" data-var="{sku}">{sku}</code>
                                 <code class="hoktech-var-tag" data-var="{product_url}">{product_url}</code>
                                 <code class="hoktech-var-tag" data-var="{site_name}">{site_name}</code>
@@ -333,16 +334,24 @@ class HokTech_Order_MetaBox {
 
         $clean_total = html_entity_decode(wp_strip_all_tags($order->get_formatted_order_total()), ENT_QUOTES, 'UTF-8');
 
+        // Calculate estimated delivery
+        $estimated_delivery = function_exists('hoktech_get_order_estimated_delivery')
+            ? hoktech_get_order_estimated_delivery($order)
+            : '';
+
         $replacements = [
-            '{order_id}'       => $order->get_order_number(),
-            '{customer_name}'  => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
-            '{order_total}'    => $clean_total,
-            '{order_status}'   => wc_get_order_status_name($order->get_status()),
-            '{site_name}'      => get_bloginfo('name'),
-            '{order_items}'    => implode("\n", $items_text),
-            '{billing_phone}'  => $order->get_billing_phone(),
-            '{sku}'            => $sku_list,
-            '{product_url}'    => $url_list,
+            '{order_id}'                => $order->get_order_number(),
+            '{customer_name}'           => $order->get_billing_first_name() . ' ' . $order->get_billing_last_name(),
+            '{order_total}'             => $clean_total,
+            '{order_status}'            => wc_get_order_status_name($order->get_status()),
+            '{site_name}'               => get_bloginfo('name'),
+            '{order_items}'             => implode("\n", $items_text),
+            '{billing_phone}'           => $order->get_billing_phone(),
+            '{sku}'                     => $sku_list,
+            '{product_url}'             => $url_list,
+            '{estimated_delivery}'      => $estimated_delivery,
+            '{delivery_time}'           => $estimated_delivery,
+            '{estimated_delivery_days}' => $estimated_delivery,
         ];
 
         return str_replace(array_keys($replacements), array_values($replacements), $template);

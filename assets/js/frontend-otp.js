@@ -721,7 +721,12 @@
 
     // ========== Draggable Floating WhatsApp Button ==========
     function initDraggableWhatsAppButton() {
-        var $btn = $('.hoktech-draggable-btn');
+        // Clear any old stuck coordinates from localStorage
+        try {
+            localStorage.removeItem('hoktech_wa_float_pos');
+        } catch (e) {}
+
+        var $btn = $('.hoktech-wa-floating-btn.hoktech-draggable-btn');
         if (!$btn.length) return;
 
         $btn.each(function () {
@@ -733,35 +738,7 @@
             var shiftX = 0;
             var shiftY = 0;
 
-            // 1. Restore & Sanitize Saved Position
-            function restorePosition() {
-                try {
-                    var saved = localStorage.getItem('hoktech_wa_float_pos');
-                    if (saved) {
-                        var pos = JSON.parse(saved);
-                        if (pos && typeof pos.left === 'number' && typeof pos.top === 'number') {
-                            var winW = window.innerWidth || document.documentElement.clientWidth;
-                            var winH = window.innerHeight || document.documentElement.clientHeight;
-                            var btnW = el.offsetWidth || 60;
-                            var btnH = el.offsetHeight || 60;
-                            var minBottom = winW <= 768 ? 75 : 10;
-
-                            var left = Math.max(10, Math.min(pos.left, winW - btnW - 10));
-                            var top  = Math.max(10, Math.min(pos.top, winH - btnH - minBottom));
-
-                            el.style.setProperty('position', 'fixed', 'important');
-                            el.style.setProperty('left', left + 'px', 'important');
-                            el.style.setProperty('top', top + 'px', 'important');
-                            el.style.setProperty('right', 'auto', 'important');
-                            el.style.setProperty('bottom', 'auto', 'important');
-                            el.style.setProperty('margin', '0', 'important');
-                        }
-                    }
-                } catch (err) {}
-            }
-            restorePosition();
-
-            // 2. Drag Start
+            // 1. Drag Start
             function startDrag(clientX, clientY) {
                 var rect = el.getBoundingClientRect();
                 shiftX = clientX - rect.left;
@@ -775,14 +752,14 @@
                 el.classList.add('is-dragging');
             }
 
-            // 3. Drag Move
+            // 2. Drag Move
             function moveDrag(clientX, clientY) {
                 if (!isDragging) return;
 
                 var dx = clientX - startX;
                 var dy = clientY - startY;
 
-                if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+                if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
                     hasMoved = true;
                 }
 
@@ -790,7 +767,7 @@
                 var winH = window.innerHeight || document.documentElement.clientHeight;
                 var btnW = el.offsetWidth || 60;
                 var btnH = el.offsetHeight || 60;
-                var minBottom = winW <= 768 ? 70 : 10;
+                var minBottom = winW <= 768 ? 75 : 10;
 
                 var newLeft = clientX - shiftX;
                 var newTop  = clientY - shiftY;
@@ -807,30 +784,11 @@
                 el.style.setProperty('margin', '0', 'important');
             }
 
-            // 4. Drag End
+            // 3. Drag End
             function endDrag() {
                 if (!isDragging) return;
                 isDragging = false;
                 el.classList.remove('is-dragging');
-
-                if (hasMoved) {
-                    try {
-                        var rect = el.getBoundingClientRect();
-                        var winW = window.innerWidth || document.documentElement.clientWidth;
-                        var winH = window.innerHeight || document.documentElement.clientHeight;
-                        var btnW = el.offsetWidth || 60;
-                        var btnH = el.offsetHeight || 60;
-                        var minBottom = winW <= 768 ? 70 : 10;
-
-                        var saveLeft = Math.max(10, Math.min(rect.left, winW - btnW - 10));
-                        var saveTop  = Math.max(10, Math.min(rect.top, winH - btnH - minBottom));
-
-                        localStorage.setItem('hoktech_wa_float_pos', JSON.stringify({
-                            left: Math.round(saveLeft),
-                            top: Math.round(saveTop)
-                        }));
-                    } catch (err) {}
-                }
             }
 
             // Mouse Drag (Desktop)
@@ -864,6 +822,7 @@
                     touchStartX = e.touches[0].clientX;
                     touchStartY = e.touches[0].clientY;
                     isTouchDragging = false;
+                    hasMoved = false;
                 }
             }, { passive: true });
 
@@ -874,14 +833,16 @@
                 var diffX = Math.abs(curX - touchStartX);
                 var diffY = Math.abs(curY - touchStartY);
 
-                // Only begin dragging if the finger actually moved more than 8px
-                if (!isTouchDragging && (diffX > 8 || diffY > 8)) {
+                // Only begin dragging if the finger actually moved more than 12px
+                if (!isTouchDragging && (diffX > 12 || diffY > 12)) {
                     isTouchDragging = true;
                     startDrag(curX, curY);
                 }
 
                 if (isTouchDragging && isDragging) {
-                    e.preventDefault(); // Stop page scroll only once intentionally dragging the button
+                    if (e.cancelable) {
+                        e.preventDefault(); // Stop page scroll only once intentionally dragging the button
+                    }
                     moveDrag(curX, curY);
                 }
             }, { passive: false });
@@ -898,28 +859,6 @@
                     endDrag();
                 }
                 isTouchDragging = false;
-            });
-
-            // Window resize clamping
-            window.addEventListener('resize', function () {
-                if (!el || isDragging) return;
-                var rect = el.getBoundingClientRect();
-                var winW = window.innerWidth || document.documentElement.clientWidth;
-                var winH = window.innerHeight || document.documentElement.clientHeight;
-                var btnW = el.offsetWidth || 60;
-                var btnH = el.offsetHeight || 60;
-                var minBottom = winW <= 768 ? 70 : 10;
-
-                if (rect.right > winW || rect.bottom > (winH - minBottom) || rect.left < 0 || rect.top < 0) {
-                    var left = Math.max(10, Math.min(rect.left, winW - btnW - 10));
-                    var top  = Math.max(10, Math.min(rect.top, winH - btnH - minBottom));
-
-                    el.style.setProperty('position', 'fixed', 'important');
-                    el.style.setProperty('left', left + 'px', 'important');
-                    el.style.setProperty('top', top + 'px', 'important');
-                    el.style.setProperty('right', 'auto', 'important');
-                    el.style.setProperty('bottom', 'auto', 'important');
-                }
             });
 
             // Prevent WhatsApp link opening when element was dragged
