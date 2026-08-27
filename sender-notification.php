@@ -187,6 +187,10 @@ if (!function_exists('hoktech_update_product_button_settings')) {
             autoptimizeCache::clearall();
         }
 
+        return true;
+    }
+}
+
 /**
  * Get Estimated Delivery Settings
  */
