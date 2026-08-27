@@ -246,6 +246,120 @@ if (!function_exists('hoktech_parse_delivery_days_score')) {
 }
 
 /**
+ * Extract the estimated delivery for a single WC_Product.
+ *
+ * @param WC_Product|int $product
+ * @return string
+ */
+if (!function_exists('hoktech_get_product_estimated_delivery')) {
+    function hoktech_get_product_estimated_delivery($product) {
+        if (!$product) {
+            return '';
+        }
+        if (is_numeric($product)) {
+            $product = wc_get_product($product);
+        }
+        if (!$product || !is_a($product, 'WC_Product')) {
+            return '';
+        }
+
+        $settings         = hoktech_get_delivery_settings();
+        $default_delivery = trim($settings['default_estimated_delivery'] ?? '');
+        $custom_meta_key  = trim($settings['custom_meta_key'] ?? '');
+
+        $product_keys = [
+            '_estimated_delivery',
+            'estimated_delivery',
+            '_estimated_delivery_days',
+            'estimated_delivery_days',
+            '_delivery_days',
+            'delivery_days',
+            '_delivery_time',
+            'delivery_time',
+            '_shipping_days',
+            'shipping_days',
+            '_estimated_days',
+            'estimated_days',
+            '_estimated_delivery_text',
+            'estimated_delivery_text',
+            '_min_delivery_days',
+            '_max_delivery_days',
+            '_estimated_delivery_min',
+            '_estimated_delivery_max',
+            '_delivery_estimate',
+            '_expected_delivery',
+            '_woo_estimated_delivery',
+            '_wcfm_estimated_delivery',
+            '_dokan_estimated_delivery',
+            '_pi_delivery_date',
+            '_orddd_delivery_date',
+            '_delivery_date',
+            'delivery_date',
+        ];
+
+        if (!empty($custom_meta_key)) {
+            array_unshift($product_keys, $custom_meta_key);
+        }
+
+        $val = '';
+        foreach ($product_keys as $key) {
+            $v = $product->get_meta($key);
+            if (!empty($v) && is_scalar($v)) {
+                $val = trim((string) $v);
+                break;
+            }
+        }
+
+        // Check parent if variation
+        if (empty($val) && method_exists($product, 'is_type') && $product->is_type('variation')) {
+            $parent_id = $product->get_parent_id();
+            if ($parent_id) {
+                $parent = wc_get_product($parent_id);
+                if ($parent) {
+                    foreach ($product_keys as $key) {
+                        $v = $parent->get_meta($key);
+                        if (!empty($v) && is_scalar($v)) {
+                            $val = trim((string) $v);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check attributes
+        if (empty($val) && method_exists($product, 'get_attribute')) {
+            $attr_keys = [
+                'pa_estimated-delivery',
+                'pa_estimated_delivery',
+                'pa_delivery-time',
+                'pa_delivery_time',
+                'pa_مدة-التوصيل',
+                'pa_التوصيل',
+            ];
+            foreach ($attr_keys as $attr) {
+                $v = $product->get_attribute($attr);
+                if (!empty($v)) {
+                    $val = trim((string) $v);
+                    break;
+                }
+            }
+        }
+
+        if (empty($val)) {
+            $val = $default_delivery;
+        }
+
+        if (is_numeric(trim($val))) {
+            $days = (int) trim($val);
+            $val = sprintf(_n('%d يوم', '%d أيام', $days, 'sender-notification'), $days);
+        }
+
+        return (string) apply_filters('hoktech_wa_product_estimated_delivery', $val, $product);
+    }
+}
+
+/**
  * Calculate / extract the estimated delivery for an order.
  * If the order contains multiple items with different delivery estimates,
  * it automatically calculates and selects the maximum duration (الأيام الأكثر).

@@ -1277,6 +1277,7 @@ class HokTech_Admin_Settings {
                                         <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_id}"><code>{product_id}</code> <?php esc_html_e('معرف المنتج', 'sender-notification'); ?></button>
                                         <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_category}"><code>{product_category}</code> <?php esc_html_e('تصنيف المنتج', 'sender-notification'); ?></button>
                                         <button type="button" class="hoktech-insert-product-var button button-small" data-var="{product_short_desc}"><code>{product_short_desc}</code> <?php esc_html_e('الوصف المختصر', 'sender-notification'); ?></button>
+                                        <button type="button" class="hoktech-insert-product-var button button-small" data-var="{estimated_delivery}"><code>{estimated_delivery}</code> <?php esc_html_e('وقت التوصيل', 'sender-notification'); ?></button>
                                         <button type="button" class="hoktech-insert-product-var button button-small" data-var="{site_name}"><code>{site_name}</code> <?php esc_html_e('اسم الموقع', 'sender-notification'); ?></button>
                                     </div>
                                 </div>

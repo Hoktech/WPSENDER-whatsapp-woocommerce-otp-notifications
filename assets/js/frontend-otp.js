@@ -673,6 +673,8 @@
             }
 
             var varSku = variation.sku ? variation.sku : baseSku;
+            var baseDelivery = $button.data('product-estimated-delivery') || '';
+            var varDelivery  = (variation && variation.estimated_delivery) ? variation.estimated_delivery : baseDelivery;
             
             // Format price if available
             var varPrice = basePrice;
@@ -687,6 +689,8 @@
                 .replace(/{product_price}/g, varPrice)
                 .replace(/{product_sku}/g, varSku)
                 .replace(/{product_url}/g, baseUrl)
+                .replace(/{estimated_delivery}/g, varDelivery)
+                .replace(/{delivery_time}/g, varDelivery)
                 .replace(/{site_name}/g, siteName);
 
             var newHref = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(rawPhone) + '&text=' + encodeURIComponent(msg);
@@ -704,6 +708,7 @@
             var baseSku      = $button.data('product-sku') || '';
             var basePrice    = $button.data('product-price') || '';
             var baseUrl      = $button.data('product-url') || window.location.href;
+            var baseDelivery = $button.data('product-estimated-delivery') || '';
 
             if (!baseTemplate) return;
 
@@ -712,6 +717,8 @@
                 .replace(/{product_price}/g, basePrice)
                 .replace(/{product_sku}/g, baseSku)
                 .replace(/{product_url}/g, baseUrl)
+                .replace(/{estimated_delivery}/g, baseDelivery)
+                .replace(/{delivery_time}/g, baseDelivery)
                 .replace(/{site_name}/g, siteName);
 
             var newHref = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(rawPhone) + '&text=' + encodeURIComponent(msg);
